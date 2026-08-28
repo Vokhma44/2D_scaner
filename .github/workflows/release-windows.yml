@@ -29,9 +29,9 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      - name: Test and build distribution
+      - name: Test server and build agent distribution
         shell: pwsh
-        run: .\gradlew.bat :agent:test :agent:installDist --no-daemon
+        run: .\gradlew.bat :server:test :agent:test :agent:installDist --no-daemon
 
       - name: Resolve release version
         id: version

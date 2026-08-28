@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: netscan
+      POSTGRES_USER: netscan
+      POSTGRES_PASSWORD: ${NETSCAN_DB_PASSWORD}
+    volumes:
+      - netscan-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netscan -d netscan"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NETSCAN_DB_URL: jdbc:postgresql://postgres:5432/netscan
+      NETSCAN_DB_USER: netscan
+      NETSCAN_DB_PASSWORD: ${NETSCAN_DB_PASSWORD}
+      NETSCAN_ADMIN_TOKEN: ${NETSCAN_ADMIN_TOKEN}
+      NETSCAN_SERVER_PORT: 8081
+    ports:
+      - "127.0.0.1:8081:8081"
+
+volumes:
+  netscan-postgres:

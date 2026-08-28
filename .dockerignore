@@ -1,0 +1,10 @@
+.git
+.gradle
+**/build
+**/node_modules
+.env.server
+.idea
+.vscode
+*.log
+*.p12
+*.jks

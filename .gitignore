@@ -11,6 +11,7 @@ node_modules/
 mobile/dist/
 .vite/
 *.local
+.env.server
 
 # Сгенерированные ассеты веб-клиента внутри агента
 agent/src/main/resources/web/
