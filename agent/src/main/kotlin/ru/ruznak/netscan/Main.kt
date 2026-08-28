@@ -33,6 +33,12 @@ fun main(argv: Array<String>) {
 
     Files.createDirectories(args.home)
 
+    val instanceLock = SingleInstanceLock.acquire(args.home.resolve("agent.lock"))
+    if (instanceLock == null) {
+        log.info("Агент уже запущен для каталога {}", args.home)
+        return
+    }
+
     val configStore = ConfigStore.open(args.home.resolve("config.json"))
     // Ключи командной строки имеют приоритет над сохранённым конфигом и сразу
     // становятся новым значением по умолчанию: запуск скрипта настраивает агент.
@@ -104,6 +110,7 @@ fun main(argv: Array<String>) {
             fleet.close()
             servers.stop()
             state.close()
+            instanceLock.close()
             shutdown.countDown()
         },
     )
