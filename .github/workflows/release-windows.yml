@@ -68,6 +68,12 @@ jobs:
           Copy-Item packaging\windows\install-netscan.ps1 build\artifact\install-netscan.ps1
           Copy-Item packaging\windows\uninstall-netscan.ps1 build\artifact\uninstall-netscan.ps1
           Copy-Item packaging\windows\INSTALL.txt build\artifact\INSTALL.txt
+          # Windows PowerShell 5.1 treats UTF-8 without BOM as an ANSI code page.
+          # Re-encode scripts so Russian text cannot break PowerShell parsing.
+          $installScript = Get-Content build\artifact\install-netscan.ps1 -Raw
+          $installScript | Set-Content build\artifact\install-netscan.ps1 -Encoding utf8BOM -NoNewline
+          $uninstallScript = Get-Content build\artifact\uninstall-netscan.ps1 -Raw
+          $uninstallScript | Set-Content build\artifact\uninstall-netscan.ps1 -Encoding utf8BOM -NoNewline
           Compress-Archive `
             -Path build\artifact\* `
             -DestinationPath "build\netscan-windows-${{ steps.version.outputs.version }}.zip"
