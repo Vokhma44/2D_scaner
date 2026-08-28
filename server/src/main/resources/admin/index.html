@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>РУЗНАК fleet</title>
+  <style>
+    :root { --yellow:#ffe500; --ink:#242424; --muted:#6d7077; --line:#e3e4e8; --bg:#f5f6f7; --green:#16823b; --red:#b42318; }
+    * { box-sizing:border-box }
+    body { margin:0; color:var(--ink); background:var(--bg); font:15px/1.45 "Segoe UI",Arial,sans-serif }
+    header { height:68px; background:var(--yellow); display:flex; align-items:center; padding:0 28px; box-shadow:0 1px 0 #d8c500 }
+    .brand { font-weight:800; font-size:21px; letter-spacing:.04em }
+    .brand small { font-weight:600; font-size:13px; letter-spacing:0; margin-left:10px; opacity:.68 }
+    main { max-width:1180px; margin:28px auto; padding:0 20px }
+    .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:0 4px 18px rgba(26,28,32,.04) }
+    .toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap }
+    h1,h2,p { margin-top:0 } h1 { font-size:25px; margin-bottom:5px } h2 { font-size:18px }
+    .muted { color:var(--muted) }
+    button,input { font:inherit; border-radius:9px; border:1px solid var(--line); padding:10px 13px }
+    input { width:100%; background:#fff }
+    button { cursor:pointer; background:#fff; font-weight:600 }
+    button.primary { background:var(--ink); border-color:var(--ink); color:#fff }
+    button.danger { color:var(--red) } button:disabled { opacity:.45; cursor:not-allowed }
+    .login { max-width:480px; margin:80px auto }
+    .login form { display:grid; gap:13px }
+    .error { color:var(--red); min-height:22px }
+    .stats { display:grid; grid-template-columns:repeat(3,minmax(120px,1fr)); gap:12px; margin-bottom:18px }
+    .stat { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px }
+    .stat b { display:block; font-size:28px }
+    .table-wrap { overflow:auto }
+    table { width:100%; border-collapse:collapse; min-width:860px }
+    th,td { padding:12px 10px; text-align:left; border-bottom:1px solid var(--line); vertical-align:middle }
+    th { font-size:12px; text-transform:uppercase; color:var(--muted); letter-spacing:.04em }
+    .badge { display:inline-flex; align-items:center; gap:6px; border-radius:99px; padding:3px 9px; font-size:12px; font-weight:700 }
+    .badge:before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor }
+    .online { color:var(--green); background:#e9f7ee }.offline { color:#6d7077; background:#eceef1 }.revoked { color:var(--red); background:#fff0ee }
+    dialog { border:0; border-radius:14px; padding:0; width:min(520px,calc(100% - 32px)); box-shadow:0 24px 80px rgba(0,0,0,.25) }
+    dialog::backdrop { background:rgba(20,22,25,.5) }
+    .dialog-body { padding:22px }.dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px }
+    .token { display:flex; gap:8px; margin-top:14px }.token input { font-family:Consolas,monospace }
+    [hidden] { display:none!important }
+    @media(max-width:650px){ header{padding:0 18px}.stats{grid-template-columns:1fr}.toolbar button{width:100%} }
+  </style>
+</head>
+<body>
+  <header><div class="brand">РУЗНАК <small>fleet management</small></div></header>
+  <main>
+    <section class="card login" id="login">
+      <h1>Панель управления</h1>
+      <p class="muted">Введите административный токен сервера. Он останется только в этой вкладке браузера.</p>
+      <form id="login-form">
+        <input id="admin-token" type="password" autocomplete="current-password" placeholder="NETSCAN_ADMIN_TOKEN" required>
+        <button class="primary" type="submit">Войти</button>
+        <div class="error" id="login-error"></div>
+      </form>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="toolbar">
+        <div><h1>Рабочие места</h1><div class="muted" id="updated">Загрузка…</div></div>
+        <div><button id="refresh">Обновить</button> <button class="primary" id="new-token">Подключить агент</button> <button id="logout">Выйти</button></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="count-all">0</b><span class="muted">всего</span></div>
+        <div class="stat"><b id="count-online">0</b><span class="muted">онлайн</span></div>
+        <div class="stat"><b id="count-offline">0</b><span class="muted">офлайн</span></div>
+      </div>
+      <section class="card table-wrap">
+        <table>
+          <thead><tr><th>Рабочее место</th><th>Компьютер</th><th>Статус</th><th>Версия</th><th>ОС</th><th>Последняя связь</th><th></th></tr></thead>
+          <tbody id="agents"></tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="token-dialog"><div class="dialog-body">
+    <h2>Новый код подключения</h2>
+    <div id="token-form">
+      <label>Название рабочего места<input id="token-label" value="Новое рабочее место" maxlength="200"></label>
+      <label style="display:block;margin-top:12px">Срок действия, минут<input id="token-ttl" type="number" value="60" min="1" max="1440"></label>
+    </div>
+    <div id="token-result" hidden>
+      <p class="muted">Код показывается один раз. Скопируйте его и используйте при первом запуске агента.</p>
+      <div class="token"><input id="token-value" readonly><button id="copy-token">Копировать</button></div>
+      <p class="muted" id="token-expiry" style="margin-top:10px"></p>
+    </div>
+    <div class="error" id="token-error"></div>
+    <div class="dialog-actions"><button id="token-close">Закрыть</button><button class="primary" id="token-create">Выпустить код</button></div>
+  </div></dialog>
+
+  <script>
+    const state = { token: sessionStorage.getItem('netscan.adminToken') || '', timer: null };
+    const $ = id => document.getElementById(id);
+    const escapeHtml = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const api = async (path, options={}) => {
+      const response = await fetch(path, { ...options, headers:{'Authorization':`Bearer ${state.token}`,'Content-Type':'application/json',...(options.headers||{})} });
+      const body = response.status === 204 ? null : await response.json().catch(()=>null);
+      if (!response.ok) throw new Error(body?.error || `HTTP ${response.status}`);
+      return body;
+    };
+    const formatDate = value => value ? new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : '—';
+    const statusText = {online:'онлайн',offline:'офлайн',revoked:'отозван'};
+
+    async function loadAgents() {
+      try {
+        const agents = await api('/api/v1/admin/agents');
+        $('agents').innerHTML = agents.length ? agents.map(agent => `<tr>
+          <td><b>${escapeHtml(agent.displayName)}</b></td><td>${escapeHtml(agent.hostName)}</td>
+          <td><span class="badge ${agent.status}">${statusText[agent.status]||agent.status}</span></td>
+          <td>${escapeHtml(agent.agentVersion)}</td><td>${escapeHtml(agent.osName)} ${escapeHtml(agent.osVersion)}</td>
+          <td>${formatDate(agent.lastSeenAt)}</td>
+          <td><button class="danger revoke" data-id="${agent.id}" data-name="${escapeHtml(agent.displayName)}" ${agent.status==='revoked'?'disabled':''}>Отозвать</button></td>
+        </tr>`).join('') : '<tr><td colspan="7" class="muted">Пока нет подключённых агентов</td></tr>';
+        $('count-all').textContent = agents.length;
+        $('count-online').textContent = agents.filter(x=>x.status==='online').length;
+        $('count-offline').textContent = agents.filter(x=>x.status==='offline').length;
+        $('updated').textContent = `Обновлено ${new Date().toLocaleTimeString('ru-RU')}`;
+        document.querySelectorAll('.revoke').forEach(button => button.onclick = () => revokeAgent(button.dataset.id, button.dataset.name));
+      } catch (error) {
+        if (/401|403|токен|доступ/i.test(error.message)) logout(); else $('updated').textContent = `Ошибка: ${error.message}`;
+      }
+    }
+    async function revokeAgent(id,name) {
+      if (!confirm(`Отозвать агент «${name}»? Он потеряет доступ к fleet-серверу, но локальное сканирование продолжится.`)) return;
+      try { await api(`/api/v1/admin/agents/${id}/revoke`,{method:'POST'}); await loadAgents(); } catch(error){ alert(error.message); }
+    }
+    function showDashboard(){ $('login').hidden=true;$('dashboard').hidden=false;loadAgents();clearInterval(state.timer);state.timer=setInterval(loadAgents,30000); }
+    function logout(){ state.token='';sessionStorage.removeItem('netscan.adminToken');clearInterval(state.timer);$('dashboard').hidden=true;$('login').hidden=false; }
+    $('login-form').onsubmit = async event => { event.preventDefault();state.token=$('admin-token').value.trim();$('login-error').textContent='';try{await api('/api/v1/admin/agents');sessionStorage.setItem('netscan.adminToken',state.token);showDashboard();}catch(error){state.token='';$('login-error').textContent='Неверный административный токен';} };
+    $('logout').onclick=logout;$('refresh').onclick=loadAgents;
+    $('new-token').onclick=()=>{$('token-form').hidden=false;$('token-result').hidden=true;$('token-create').hidden=false;$('token-error').textContent='';$('token-dialog').showModal();};
+    $('token-close').onclick=()=>$('token-dialog').close();
+    $('token-create').onclick=async()=>{try{const result=await api('/api/v1/admin/enrollment-tokens',{method:'POST',body:JSON.stringify({label:$('token-label').value,ttlMinutes:Number($('token-ttl').value)})});$('token-value').value=result.token;$('token-expiry').textContent=`Действует до ${formatDate(result.expiresAt)}`;$('token-form').hidden=true;$('token-result').hidden=false;$('token-create').hidden=true;}catch(error){$('token-error').textContent=error.message;}};
+    $('copy-token').onclick=async()=>{await navigator.clipboard.writeText($('token-value').value);$('copy-token').textContent='Скопировано';};
+    if(state.token) showDashboard();
+  </script>
+</body>
+</html>

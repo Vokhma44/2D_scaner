@@ -1,5 +1,6 @@
 package ru.ruznak.netscan.server
 
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -8,6 +9,7 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -16,6 +18,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
     val appLog = environment.log
@@ -33,6 +36,13 @@ fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
     }
 
     routing {
+        get("/admin") {
+            val html = checkNotNull(javaClass.getResource("/admin/index.html")) {
+                "Ресурс панели администратора не найден"
+            }.readText(Charsets.UTF_8)
+            call.respondText(html, ContentType.Text.Html)
+        }
+
         get("/health") {
             if (repository.ping()) call.respond(mapOf("status" to "ok"))
             else call.respond(HttpStatusCode.ServiceUnavailable, ErrorResponse("База данных недоступна"))
@@ -65,14 +75,25 @@ fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
                         osVersion = agent.osVersion,
                         enrolledAt = agent.enrolledAt.toString(),
                         lastSeenAt = agent.lastSeenAt.toString(),
-                        status = if (Duration.between(agent.lastSeenAt, now).seconds <= config.onlineWindowSeconds) {
+                        status = if (agent.revokedAt != null) {
+                            "revoked"
+                        } else if (Duration.between(agent.lastSeenAt, now).seconds <= config.onlineWindowSeconds) {
                             "online"
                         } else {
                             "offline"
                         },
+                        revokedAt = agent.revokedAt?.toString(),
                     )
                 }
                 call.respond(agents)
+            }
+
+            post("/agents/{id}/revoke") {
+                requireAdmin(call.request.headers["Authorization"], config.adminToken)
+                val id = runCatching { UUID.fromString(call.parameters["id"]) }
+                    .getOrElse { throw ApiException(400, "Некорректный идентификатор агента") }
+                if (!repository.revokeAgent(id)) throw ApiException(404, "Агент не найден")
+                call.respond(mapOf("status" to "revoked"))
             }
         }
 

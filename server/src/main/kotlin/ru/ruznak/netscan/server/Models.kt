@@ -56,6 +56,7 @@ data class AgentView(
     val enrolledAt: String,
     val lastSeenAt: String,
     val status: String,
+    val revokedAt: String? = null,
 )
 
 @Serializable
@@ -70,6 +71,7 @@ data class AgentRecord(
     val osVersion: String,
     val enrolledAt: Instant,
     val lastSeenAt: Instant,
+    val revokedAt: Instant? = null,
 )
 
 class ApiException(val status: Int, override val message: String) : RuntimeException(message)

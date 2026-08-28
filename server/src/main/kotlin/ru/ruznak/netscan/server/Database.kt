@@ -112,7 +112,7 @@ class FleetRepository(private val dataSource: DataSource) {
     }
 
     fun authenticateAgent(rawToken: String): UUID? = dataSource.connection.use { connection ->
-        connection.prepareStatement("SELECT id FROM agents WHERE token_hash = ?").use { statement ->
+        connection.prepareStatement("SELECT id FROM agents WHERE token_hash = ? AND revoked_at IS NULL").use { statement ->
             statement.setString(1, Tokens.hash(rawToken))
             statement.executeQuery().use { result -> if (result.next()) result.getObject("id", UUID::class.java) else null }
         }
@@ -122,7 +122,7 @@ class FleetRepository(private val dataSource: DataSource) {
         connection.prepareStatement(
             """
             UPDATE agents SET last_seen_at = CURRENT_TIMESTAMP, agent_version = ?, host_name = ?
-            WHERE id = ?
+            WHERE id = ? AND revoked_at IS NULL
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, request.agentVersion)
@@ -136,7 +136,7 @@ class FleetRepository(private val dataSource: DataSource) {
         connection.prepareStatement(
             """
             SELECT id, display_name, host_name, agent_version, os_name, os_version,
-                   enrolled_at, last_seen_at
+                   enrolled_at, last_seen_at, revoked_at
             FROM agents ORDER BY last_seen_at DESC
             """.trimIndent(),
         ).use { statement ->
@@ -153,11 +153,21 @@ class FleetRepository(private val dataSource: DataSource) {
                                 osVersion = result.getString("os_version"),
                                 enrolledAt = result.getObject("enrolled_at", OffsetDateTime::class.java).toInstant(),
                                 lastSeenAt = result.getObject("last_seen_at", OffsetDateTime::class.java).toInstant(),
+                                revokedAt = result.getObject("revoked_at", OffsetDateTime::class.java)?.toInstant(),
                             ),
                         )
                     }
                 }
             }
+        }
+    }
+
+    fun revokeAgent(id: UUID): Boolean = dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            "UPDATE agents SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE id = ?",
+        ).use { statement ->
+            statement.setObject(1, id)
+            statement.executeUpdate() == 1
         }
     }
 }
