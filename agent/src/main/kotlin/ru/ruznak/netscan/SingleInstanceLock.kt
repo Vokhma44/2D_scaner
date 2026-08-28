@@ -26,9 +26,9 @@ class SingleInstanceLock private constructor(
                 channel.tryLock()
             } catch (_: OverlappingFileLockException) {
                 null
-            } catch (_: Throwable) {
+            } catch (error: Throwable) {
                 channel.close()
-                throw
+                throw error
             }
             if (lock == null) {
                 channel.close()
