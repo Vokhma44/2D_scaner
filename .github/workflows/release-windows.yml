@@ -45,21 +45,18 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force build\package | Out-Null
+          $mainJar = (Get-ChildItem agent\build\install\netscan\lib\agent-*.jar | Select-Object -First 1).Name
           jpackage `
             --type app-image `
             --name netscan `
             --app-version "${{ steps.version.outputs.version }}" `
             --input agent\build\install\netscan\lib `
-            --main-jar agent-1.0.0.jar `
+            --main-jar $mainJar `
             --main-class ru.ruznak.netscan.MainKt `
             --java-options "-Dfile.encoding=UTF-8" `
             --java-options "-Dstdout.encoding=UTF-8" `
             --java-options "-Dstderr.encoding=UTF-8" `
-            --win-console `
             --dest build\package
-          Copy-Item `
-            packaging\windows\start-netscan.cmd `
-            build\package\netscan\start-netscan.cmd
           Compress-Archive `
             -Path build\package\netscan `
             -DestinationPath "build\netscan-windows-${{ steps.version.outputs.version }}.zip"

@@ -16,7 +16,7 @@ import ru.ruznak.netscan.security.RateLimiter
 import java.net.InetAddress
 
 /** Версия агента: показывается в консоли и уходит телефону в welcome. */
-const val AGENT_VERSION: String = "1.0.0"
+const val AGENT_VERSION: String = "1.1.0"
 
 /**
  * Собранное состояние работающего агента: одна точка, из которой маршруты

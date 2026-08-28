@@ -10,6 +10,7 @@ import ru.ruznak.netscan.output.SinkManager
 import ru.ruznak.netscan.scan.ScanHistory
 import ru.ruznak.netscan.security.DeviceRegistry
 import ru.ruznak.netscan.security.PairingService
+import ru.ruznak.netscan.tray.TrayController
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import kotlin.system.exitProcess
@@ -80,9 +81,13 @@ fun main(argv: Array<String>) {
     print(Banner.render(state))
 
     val shutdown = CountDownLatch(1)
+    val tray = TrayController.install(state) {
+        exitProcess(0)
+    }
     Runtime.getRuntime().addShutdownHook(
         Thread {
             log.info("Остановка агента")
+            tray?.close()
             servers.stop()
             state.close()
             shutdown.countDown()

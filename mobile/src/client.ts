@@ -234,7 +234,7 @@ export function describeDevice(name: string): DeviceInfo {
     name: name || 'Телефон',
     platform: navigator.platform || guessPlatform(),
     userAgent: navigator.userAgent.slice(0, 200),
-    appVersion: '1.0.0',
+    appVersion: '1.1.0',
   };
 }
 
