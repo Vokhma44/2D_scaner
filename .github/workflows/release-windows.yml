@@ -57,6 +57,9 @@ jobs:
             --java-options "-Dstderr.encoding=UTF-8" `
             --win-console `
             --dest build\package
+          Copy-Item `
+            packaging\windows\start-netscan.cmd `
+            build\package\netscan\start-netscan.cmd
           Compress-Archive `
             -Path build\package\netscan `
             -DestinationPath "build\netscan-windows-${{ steps.version.outputs.version }}.zip"
