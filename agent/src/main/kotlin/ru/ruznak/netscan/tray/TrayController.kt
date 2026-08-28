@@ -40,7 +40,10 @@ class TrayController private constructor(
                         addActionListener { browse(consoleUrl) }
                     })
                     add(MenuItem("Подключить телефон (QR-код)").apply {
-                        addActionListener { browse(state.pairingUrl()) }
+                        // Мобильный URL нельзя открывать на ПК: это запустит PWA-сканер
+                        // и браузер запросит веб-камеру компьютера. QR-код уже показан
+                        // в локальной консоли оператора.
+                        addActionListener { browse(consoleUrl) }
                     })
                     addSeparator()
                     add(MenuItem("Выход").apply {
