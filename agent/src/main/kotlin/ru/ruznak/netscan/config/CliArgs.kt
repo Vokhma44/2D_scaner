@@ -7,6 +7,7 @@ import java.nio.file.Paths
 data class CliArgs(
     val home: Path,
     val overrides: (AgentConfig) -> AgentConfig,
+    val enrollmentToken: String? = null,
     val resetPairing: Boolean = false,
     val showHelp: Boolean = false,
 ) {
@@ -30,6 +31,9 @@ netscan — сетевой 2D-сканер: телефон работает вм
   --file <путь>            файл для приёмника file
   --webhook <url>          адрес для приёмника webhook
   --approve-devices        требовать подтверждение нового устройства на ПК
+  --fleet-server <URL>     HTTPS-адрес центрального fleet-сервера
+  --agent-name <имя>       имя рабочего места в центральной панели
+  --enrollment-token <код> одноразовый код первичной регистрации агента
   --reset-pairing          выпустить новый код сопряжения и отозвать сессии
   --help                   эта справка
 """
@@ -38,6 +42,7 @@ netscan — сетевой 2D-сканер: телефон работает вм
             var home = Paths.get(System.getProperty("user.home"), ".netscan")
             var reset = false
             var help = false
+            var enrollmentToken: String? = null
             val mutations = mutableListOf<(AgentConfig) -> AgentConfig>()
 
             fun value(index: Int, name: String): String =
@@ -51,6 +56,15 @@ netscan — сетевой 2D-сканер: телефон работает вм
                     "--reset-pairing" -> reset = true
                     "--approve-devices" ->
                         mutations += { it.copy(security = it.security.copy(requireDeviceApproval = true)) }
+                    "--fleet-server" -> {
+                        val serverUrl = value(++i, arg).trim().trimEnd('/')
+                        mutations += { it.copy(fleet = it.fleet.copy(serverUrl = serverUrl)) }
+                    }
+                    "--agent-name" -> {
+                        val displayName = value(++i, arg).trim()
+                        mutations += { it.copy(fleet = it.fleet.copy(displayName = displayName)) }
+                    }
+                    "--enrollment-token" -> enrollmentToken = value(++i, arg).trim()
                     "--home" -> home = Paths.get(value(++i, arg))
                     "--port" -> {
                         val port = value(++i, arg).toIntOrNull() ?: error("--port ожидает число")
@@ -112,6 +126,7 @@ netscan — сетевой 2D-сканер: телефон работает вм
             return CliArgs(
                 home = home,
                 overrides = { base -> mutations.fold(base) { acc, mutate -> mutate(acc) } },
+                enrollmentToken = enrollmentToken,
                 resetPairing = reset,
                 showHelp = help,
             )

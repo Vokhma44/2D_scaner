@@ -13,6 +13,15 @@ data class AgentConfig(
     val security: SecurityConfig = SecurityConfig(),
     val scan: ScanConfig = ScanConfig(),
     val output: OutputConfig = OutputConfig(),
+    val fleet: FleetConfig = FleetConfig(),
+)
+
+@Serializable
+data class FleetConfig(
+    /** Публичный HTTPS-адрес центрального сервера; пусто — fleet отключён. */
+    val serverUrl: String = "",
+    /** Понятное оператору имя рабочего места в центральной панели. */
+    val displayName: String = "",
 )
 
 @Serializable

@@ -1,5 +1,6 @@
 package ru.ruznak.netscan
 
+import kotlinx.serialization.encodeToString
 import ru.ruznak.netscan.config.AgentConfig
 import ru.ruznak.netscan.config.CliArgs
 import ru.ruznak.netscan.config.ConfigStore
@@ -7,6 +8,8 @@ import ru.ruznak.netscan.config.SinkKind
 import ru.ruznak.netscan.config.SuffixKey
 import ru.ruznak.netscan.config.TypingMode
 import ru.ruznak.netscan.console.QrRenderer
+import ru.ruznak.netscan.fleet.FleetCredentials
+import ru.ruznak.netscan.fleet.FleetCredentialsStore
 import ru.ruznak.netscan.protocol.DeviceInfo
 import ru.ruznak.netscan.protocol.DeviceStatus
 import ru.ruznak.netscan.security.DeviceRegistry
@@ -224,6 +227,39 @@ class CliArgsTest {
     fun sovpadayuschie_porty_otklonyayutsya() {
         val config = CliArgs.parse(arrayOf("--port", "8080")).overrides(AgentConfig())
         assertTrue(runCatching { config.network.validated() }.isFailure)
+    }
+
+    @Test
+    @DisplayName("fleet-параметры сохраняют адрес и не записывают одноразовый токен в конфиг")
+    fun fleet_parametry_razdeleny_ot_sekreta() {
+        val args = CliArgs.parse(
+            arrayOf(
+                "--fleet-server", "https://fleet.example.ru/",
+                "--agent-name", "Приёмка 1",
+                "--enrollment-token", "secret-once",
+            ),
+        )
+        val config = args.overrides(AgentConfig())
+
+        assertEquals("https://fleet.example.ru", config.fleet.serverUrl)
+        assertEquals("Приёмка 1", config.fleet.displayName)
+        assertEquals("secret-once", args.enrollmentToken)
+        assertFalse(ConfigStore.JSON.encodeToString(config).contains("secret-once"))
+    }
+}
+
+class FleetCredentialsStoreTest {
+    @Test
+    @DisplayName("секрет агента сохраняется отдельно и привязан к адресу сервера")
+    fun sekret_agenta_privyazan_k_serveru() {
+        val file = createTempDirectory("netscan-fleet").resolve("fleet-credentials.json")
+        val store = FleetCredentialsStore(file)
+        val credentials = FleetCredentials("https://fleet.example.ru", "agent-1", "secret")
+
+        store.save(credentials)
+
+        assertEquals(credentials, store.load("https://fleet.example.ru"))
+        assertNull(store.load("https://another.example.ru"))
     }
 }
 

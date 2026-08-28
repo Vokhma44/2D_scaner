@@ -4,6 +4,8 @@ import org.slf4j.LoggerFactory
 import ru.ruznak.netscan.config.CliArgs
 import ru.ruznak.netscan.config.ConfigStore
 import ru.ruznak.netscan.console.Banner
+import ru.ruznak.netscan.fleet.FleetClient
+import ru.ruznak.netscan.fleet.FleetCredentialsStore
 import ru.ruznak.netscan.net.TlsProvisioner
 import ru.ruznak.netscan.net.startServers
 import ru.ruznak.netscan.output.SinkManager
@@ -80,6 +82,13 @@ fun main(argv: Array<String>) {
 
     print(Banner.render(state))
 
+    val fleet = FleetClient(
+        config = config.fleet,
+        hostName = state.hostName(),
+        enrollmentToken = args.enrollmentToken,
+        credentialsStore = FleetCredentialsStore(args.home.resolve("fleet-credentials.json")),
+    ).also { it.start() }
+
     val shutdown = CountDownLatch(1)
     val tray = TrayController.install(state) {
         exitProcess(0)
@@ -88,6 +97,7 @@ fun main(argv: Array<String>) {
         Thread {
             log.info("Остановка агента")
             tray?.close()
+            fleet.close()
             servers.stop()
             state.close()
             shutdown.countDown()
