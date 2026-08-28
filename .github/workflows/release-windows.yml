@@ -1,0 +1,77 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Test and build distribution
+        shell: pwsh
+        run: .\gradlew.bat :agent:test :agent:installDist --no-daemon
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { $version = '1.0.0' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build self-contained Windows installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build\installer | Out-Null
+          jpackage `
+            --type exe `
+            --name netscan `
+            --app-version "${{ steps.version.outputs.version }}" `
+            --vendor "РУЗНАК" `
+            --description "Телефон вместо USB-сканера 2D" `
+            --input agent\build\install\netscan\lib `
+            --main-jar agent-1.0.0.jar `
+            --main-class ru.ruznak.netscan.MainKt `
+            --java-options "-Dfile.encoding=UTF-8" `
+            --java-options "-Dstdout.encoding=UTF-8" `
+            --java-options "-Dstderr.encoding=UTF-8" `
+            --win-console `
+            --win-menu `
+            --win-shortcut `
+            --win-dir-chooser `
+            --dest build\installer
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: netscan-windows-${{ steps.version.outputs.version }}
+          path: build/installer/*.exe
+
+      - name: Publish GitHub release asset
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/installer/*.exe
+          generate_release_notes: true

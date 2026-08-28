@@ -24,7 +24,7 @@ netscan — сетевой 2D-сканер: телефон работает вм
   --sink <список>          приёмники через запятую: keyboard,clipboard,console,file,webhook
   --suffix <none|enter|tab|both>   клавиша после кода (по умолчанию enter)
   --prefix <текст>         текст перед кодом
-  --typing <keys|clipboard|hybrid> способ ввода (по умолчанию hybrid)
+  --typing <keys|clipboard|hybrid> способ ввода (по умолчанию clipboard)
   --key-delay <мс>         задержка между символами (по умолчанию 4)
   --dedup <мс>             окно подавления повторов (по умолчанию 1500)
   --file <путь>            файл для приёмника file

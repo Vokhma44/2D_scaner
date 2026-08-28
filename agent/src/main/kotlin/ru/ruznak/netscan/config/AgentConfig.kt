@@ -78,7 +78,7 @@ data class OutputConfig(
     /** Пауза перед началом набора, мс: окно приложения успевает получить фокус. */
     val typingLeadMs: Long = 0,
     /** Способ набора текста. */
-    val typingMode: TypingMode = TypingMode.HYBRID,
+    val typingMode: TypingMode = TypingMode.CLIPBOARD,
     /** Чем заменить разделитель GS (0x1D) в кодах GS1. */
     val gs1SeparatorReplacement: String = "",
     /** Убирать пробелы по краям кода. */
