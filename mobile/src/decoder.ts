@@ -17,21 +17,18 @@ export interface Decoder {
   decode(canvas: HTMLCanvasElement): Promise<DecodedCode | null>;
 }
 
-/** Символики, которые обычно требуются вместо USB-сканера 2D. */
+/**
+ * Только двумерные символики.
+ *
+ * Линейные форматы намеренно не включены: встроенный BarcodeDetector некоторых
+ * Android-устройств принимает отдельные строки плотного DataMatrix за EAN-8.
+ * В результате вместо полного кода маркировки на ПК попадали восемь цифр.
+ */
 const NATIVE_FORMATS = [
   'qr_code',
   'data_matrix',
   'pdf417',
   'aztec',
-  'code_128',
-  'code_39',
-  'code_93',
-  'codabar',
-  'ean_13',
-  'ean_8',
-  'itf',
-  'upc_a',
-  'upc_e',
 ];
 
 const ZXING_FORMATS = [
@@ -39,16 +36,9 @@ const ZXING_FORMATS = [
   BarcodeFormat.DATA_MATRIX,
   BarcodeFormat.PDF_417,
   BarcodeFormat.AZTEC,
-  BarcodeFormat.CODE_128,
-  BarcodeFormat.CODE_39,
-  BarcodeFormat.CODE_93,
-  BarcodeFormat.CODABAR,
-  BarcodeFormat.EAN_13,
-  BarcodeFormat.EAN_8,
-  BarcodeFormat.ITF,
-  BarcodeFormat.UPC_A,
-  BarcodeFormat.UPC_E,
 ];
+
+const FORMAT_PRIORITY = ['data_matrix', 'qr_code', 'pdf417', 'aztec'];
 
 interface DetectedBarcode {
   rawValue: string;
@@ -90,7 +80,11 @@ class NativeDecoder implements Decoder {
 
   async decode(canvas: HTMLCanvasElement): Promise<DecodedCode | null> {
     const found = await this.detector.detect(canvas);
-    const first = found.find((item) => item.rawValue.length > 0);
+    // Некоторые реализации возвращают несколько результатов без гарантии
+    // порядка. Для маркировки DataMatrix должен побеждать QR/Aztec/PDF417.
+    const first = found
+      .filter((item) => item.rawValue.length > 0)
+      .sort((left, right) => formatPriority(left.format) - formatPriority(right.format))[0];
     return first ? { code: first.rawValue, format: first.format } : null;
   }
 }
@@ -146,6 +140,11 @@ function toLuminance(image: ImageData): Uint8ClampedArray {
 function formatName(format: BarcodeFormat): string {
   const name = BarcodeFormat[format];
   return typeof name === 'string' ? name.toLowerCase() : 'unknown';
+}
+
+function formatPriority(format: string): number {
+  const index = FORMAT_PRIORITY.indexOf(format.toLowerCase());
+  return index === -1 ? FORMAT_PRIORITY.length : index;
 }
 
 /** Выбирает лучший доступный декодер для текущего браузера. */
