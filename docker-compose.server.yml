@@ -31,5 +31,21 @@ services:
     ports:
       - "127.0.0.1:8081:8081"
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - netscan-caddy-data:/data
+      - netscan-caddy-config:/config
+
 volumes:
   netscan-postgres:
+  netscan-caddy-data:
+  netscan-caddy-config:
