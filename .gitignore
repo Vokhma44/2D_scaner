@@ -1,0 +1,27 @@
+# Gradle / JVM
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+*.log
+*.hprof
+
+# Node / PWA
+node_modules/
+mobile/dist/
+.vite/
+*.local
+
+# Сгенерированные ассеты веб-клиента внутри агента
+agent/src/main/resources/web/
+
+# Рабочее состояние агента (ключи, TLS, настройки, история)
+.netscan/
+*.p12
+*.jks
+
+# IDE / ОС
+.idea/
+*.iml
+.vscode/
+.DS_Store
