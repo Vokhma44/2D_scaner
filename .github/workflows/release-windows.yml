@@ -41,16 +41,14 @@ jobs:
           if ($version -notmatch '^\d+\.\d+\.\d+$') { $version = '1.0.0' }
           "version=$version" >> $env:GITHUB_OUTPUT
 
-      - name: Build self-contained Windows installer
+      - name: Build self-contained Windows application
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force build\installer | Out-Null
+          New-Item -ItemType Directory -Force build\package | Out-Null
           jpackage `
-            --type exe `
+            --type app-image `
             --name netscan `
             --app-version "${{ steps.version.outputs.version }}" `
-            --vendor "РУЗНАК" `
-            --description "Телефон вместо USB-сканера 2D" `
             --input agent\build\install\netscan\lib `
             --main-jar agent-1.0.0.jar `
             --main-class ru.ruznak.netscan.MainKt `
@@ -58,20 +56,20 @@ jobs:
             --java-options "-Dstdout.encoding=UTF-8" `
             --java-options "-Dstderr.encoding=UTF-8" `
             --win-console `
-            --win-menu `
-            --win-shortcut `
-            --win-dir-chooser `
-            --dest build\installer
+            --dest build\package
+          Compress-Archive `
+            -Path build\package\netscan `
+            -DestinationPath "build\netscan-windows-${{ steps.version.outputs.version }}.zip"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: netscan-windows-${{ steps.version.outputs.version }}
-          path: build/installer/*.exe
+          path: build/netscan-windows-*.zip
 
       - name: Publish GitHub release asset
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/installer/*.exe
+          files: build/netscan-windows-*.zip
           generate_release_notes: true
