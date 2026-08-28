@@ -38,7 +38,12 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}" -replace '^v', ''
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { $version = '1.0.0' }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            $buildFile = Get-Content agent\build.gradle.kts -Raw
+            $match = [regex]::Match($buildFile, '(?m)^version\s*=\s*"(\d+\.\d+\.\d+)"')
+            if (-not $match.Success) { throw 'Не удалось определить версию агента' }
+            $version = $match.Groups[1].Value
+          }
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Build self-contained Windows application

@@ -83,10 +83,14 @@ fun main(argv: Array<String>) {
     print(Banner.render(state))
 
     val fleet = FleetClient(
-        config = config.fleet,
+        configStore = configStore,
         hostName = state.hostName(),
         enrollmentToken = args.enrollmentToken,
         credentialsStore = FleetCredentialsStore(args.home.resolve("fleet-credentials.json")),
+        revokePhones = {
+            devices.revokeAll()
+            pairing.rotate()
+        },
     ).also { it.start() }
 
     val shutdown = CountDownLatch(1)

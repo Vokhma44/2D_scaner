@@ -221,6 +221,12 @@ private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.handl
 
         for (frame in incoming) {
             if (frame !is Frame.Text) continue
+            // Удалённый отзыв очищает локальный реестр. Уже открытый WebSocket
+            // также должен прекратить работу, а не жить до перезапуска телефона.
+            if (state.devices.byId(device.id)?.status != DeviceStatus.ACTIVE) {
+                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Сессия отозвана"))
+                break
+            }
             connection.lastMessageAt = System.currentTimeMillis()
 
             val parsed = runCatching {

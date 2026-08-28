@@ -23,12 +23,29 @@ internal data class EnrollResponse(
 internal data class HeartbeatRequest(
     val agentVersion: String,
     val hostName: String,
+    val appliedConfigRevision: Long = 0,
+    val appliedRevokePhonesRevision: Long = 0,
 )
 
 @Serializable
 internal data class HeartbeatResponse(
     val serverTime: String,
     val nextHeartbeatSeconds: Int = 30,
+    val configRevision: Long = 0,
+    val config: RemoteAgentConfig? = null,
+    val revokePhonesRevision: Long = 0,
+)
+
+@Serializable
+internal data class RemoteAgentConfig(
+    val typingMode: String = "clipboard",
+    val suffix: String = "enter",
+    val keyDelayMs: Long = 4,
+    val typingLeadMs: Long = 0,
+    val duplicateWindowMs: Long = 1500,
+    val allowedFormats: List<String> = listOf("data_matrix"),
+    val filterRegex: String? = null,
+    val gs1SeparatorReplacement: String = "",
 )
 
 @Serializable

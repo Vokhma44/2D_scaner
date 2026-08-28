@@ -16,11 +16,14 @@
     .toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap }
     h1,h2,p { margin-top:0 } h1 { font-size:25px; margin-bottom:5px } h2 { font-size:18px }
     .muted { color:var(--muted) }
-    button,input { font:inherit; border-radius:9px; border:1px solid var(--line); padding:10px 13px }
-    input { width:100%; background:#fff }
+    button,input,select { font:inherit; border-radius:9px; border:1px solid var(--line); padding:10px 13px }
+    input,select { width:100%; background:#fff }
+    input[type="checkbox"] { width:auto }
     button { cursor:pointer; background:#fff; font-weight:600 }
     button.primary { background:var(--ink); border-color:var(--ink); color:#fff }
     button.danger { color:var(--red) } button:disabled { opacity:.45; cursor:not-allowed }
+    button.small { padding:6px 9px; font-size:12px; white-space:nowrap }
+    .actions { display:flex; gap:6px; flex-wrap:wrap }
     .login { max-width:480px; margin:80px auto }
     .login form { display:grid; gap:13px }
     .error { color:var(--red); min-height:22px }
@@ -89,8 +92,30 @@
     <div class="dialog-actions"><button id="token-close">Закрыть</button><button class="primary" id="token-create">Выпустить код</button></div>
   </div></dialog>
 
+  <dialog id="config-dialog"><div class="dialog-body">
+    <h2 id="config-title">Настройки агента</h2>
+    <input id="config-agent-id" type="hidden">
+    <label>Способ ввода<select id="config-typing"><option value="clipboard">Буфер обмена</option><option value="hybrid">Гибридный</option><option value="keys">Нажатия клавиш</option></select></label>
+    <label style="display:block;margin-top:10px">Клавиша после кода<select id="config-suffix"><option value="enter">Enter</option><option value="tab">Tab</option><option value="both">Tab + Enter</option><option value="none">Ничего</option></select></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+      <label>Задержка между символами, мс<input id="config-delay" type="number" min="0" max="200"></label>
+      <label>Пауза перед вводом, мс<input id="config-lead" type="number" min="0" max="5000"></label>
+      <label>Подавление повторов, мс<input id="config-duplicate" type="number" min="0" max="60000"></label>
+      <label>Замена разделителя GS1<input id="config-gs1" maxlength="20"></label>
+    </div>
+    <label style="display:block;margin-top:10px">Фильтр, регулярное выражение<input id="config-filter" placeholder="Например, ^01\\d{14}"></label>
+    <div style="margin-top:12px"><span class="muted">Допустимые 2D-форматы</span><div class="actions" style="margin-top:6px">
+      <label><input type="checkbox" class="format" value="data_matrix"> DataMatrix</label>
+      <label><input type="checkbox" class="format" value="qr_code"> QR</label>
+      <label><input type="checkbox" class="format" value="pdf417"> PDF417</label>
+      <label><input type="checkbox" class="format" value="aztec"> Aztec</label>
+    </div></div>
+    <div class="error" id="config-error"></div>
+    <div class="dialog-actions"><button id="config-close">Закрыть</button><button class="primary" id="config-save">Отправить агенту</button></div>
+  </div></dialog>
+
   <script>
-    const state = { token: sessionStorage.getItem('netscan.adminToken') || '', timer: null };
+    const state = { token: sessionStorage.getItem('netscan.adminToken') || '', timer: null, agents: [] };
     const $ = id => document.getElementById(id);
     const escapeHtml = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const api = async (path, options={}) => {
@@ -105,25 +130,45 @@
     async function loadAgents() {
       try {
         const agents = await api('/api/v1/admin/agents');
+        state.agents = agents;
         $('agents').innerHTML = agents.length ? agents.map(agent => `<tr>
           <td><b>${escapeHtml(agent.displayName)}</b></td><td>${escapeHtml(agent.hostName)}</td>
           <td><span class="badge ${agent.status}">${statusText[agent.status]||agent.status}</span></td>
           <td>${escapeHtml(agent.agentVersion)}</td><td>${escapeHtml(agent.osName)} ${escapeHtml(agent.osVersion)}</td>
           <td>${formatDate(agent.lastSeenAt)}</td>
-          <td><button class="danger revoke" data-id="${agent.id}" data-name="${escapeHtml(agent.displayName)}" ${agent.status==='revoked'?'disabled':''}>Отозвать</button></td>
+          <td><div class="actions">
+            <button class="small configure" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Настройки</button>
+            <button class="small phones" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Отвязать телефоны</button>
+            <button class="small danger revoke" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Отозвать агент</button>
+          </div><div class="muted" style="font-size:11px;margin-top:5px">конфигурация: ${agent.configRevision===agent.appliedConfigRevision?'применена':'ожидает применения'}</div></td>
         </tr>`).join('') : '<tr><td colspan="7" class="muted">Пока нет подключённых агентов</td></tr>';
         $('count-all').textContent = agents.length;
         $('count-online').textContent = agents.filter(x=>x.status==='online').length;
         $('count-offline').textContent = agents.filter(x=>x.status==='offline').length;
         $('updated').textContent = `Обновлено ${new Date().toLocaleTimeString('ru-RU')}`;
-        document.querySelectorAll('.revoke').forEach(button => button.onclick = () => revokeAgent(button.dataset.id, button.dataset.name));
+        document.querySelectorAll('.configure').forEach(button => button.onclick = () => openConfig(button.dataset.id));
+        document.querySelectorAll('.phones').forEach(button => button.onclick = () => revokePhones(button.dataset.id));
+        document.querySelectorAll('.revoke').forEach(button => button.onclick = () => revokeAgent(button.dataset.id));
       } catch (error) {
         if (/401|403|токен|доступ/i.test(error.message)) logout(); else $('updated').textContent = `Ошибка: ${error.message}`;
       }
     }
-    async function revokeAgent(id,name) {
+    async function revokeAgent(id) {
+      const name=state.agents.find(x=>x.id===id)?.displayName||id;
       if (!confirm(`Отозвать агент «${name}»? Он потеряет доступ к fleet-серверу, но локальное сканирование продолжится.`)) return;
       try { await api(`/api/v1/admin/agents/${id}/revoke`,{method:'POST'}); await loadAgents(); } catch(error){ alert(error.message); }
+    }
+    async function revokePhones(id) {
+      const name=state.agents.find(x=>x.id===id)?.displayName||id;
+      if (!confirm(`Отвязать все телефоны от «${name}»? Пользователям потребуется заново отсканировать QR-код.`)) return;
+      try { await api(`/api/v1/admin/agents/${id}/revoke-phones`,{method:'POST'}); alert('Команда отправлена агенту'); await loadAgents(); } catch(error){ alert(error.message); }
+    }
+    function openConfig(id) {
+      const agent=state.agents.find(x=>x.id===id);if(!agent)return;const c=agent.desiredConfig;
+      $('config-agent-id').value=id;$('config-title').textContent=`Настройки — ${agent.displayName}`;
+      $('config-typing').value=c.typingMode;$('config-suffix').value=c.suffix;$('config-delay').value=c.keyDelayMs;
+      $('config-lead').value=c.typingLeadMs;$('config-duplicate').value=c.duplicateWindowMs;$('config-filter').value=c.filterRegex||'';$('config-gs1').value=c.gs1SeparatorReplacement||'';
+      document.querySelectorAll('.format').forEach(box=>box.checked=c.allowedFormats.includes(box.value));$('config-error').textContent='';$('config-dialog').showModal();
     }
     function showDashboard(){ $('login').hidden=true;$('dashboard').hidden=false;loadAgents();clearInterval(state.timer);state.timer=setInterval(loadAgents,30000); }
     function logout(){ state.token='';sessionStorage.removeItem('netscan.adminToken');clearInterval(state.timer);$('dashboard').hidden=true;$('login').hidden=false; }
@@ -133,6 +178,8 @@
     $('token-close').onclick=()=>$('token-dialog').close();
     $('token-create').onclick=async()=>{try{const result=await api('/api/v1/admin/enrollment-tokens',{method:'POST',body:JSON.stringify({label:$('token-label').value,ttlMinutes:Number($('token-ttl').value)})});$('token-value').value=result.token;$('token-expiry').textContent=`Действует до ${formatDate(result.expiresAt)}`;$('token-form').hidden=true;$('token-result').hidden=false;$('token-create').hidden=true;}catch(error){$('token-error').textContent=error.message;}};
     $('copy-token').onclick=async()=>{await navigator.clipboard.writeText($('token-value').value);$('copy-token').textContent='Скопировано';};
+    $('config-close').onclick=()=>$('config-dialog').close();
+    $('config-save').onclick=async()=>{const id=$('config-agent-id').value;const allowedFormats=[...document.querySelectorAll('.format:checked')].map(x=>x.value);try{await api(`/api/v1/admin/agents/${id}/config`,{method:'POST',body:JSON.stringify({typingMode:$('config-typing').value,suffix:$('config-suffix').value,keyDelayMs:Number($('config-delay').value),typingLeadMs:Number($('config-lead').value),duplicateWindowMs:Number($('config-duplicate').value),allowedFormats,filterRegex:$('config-filter').value||null,gs1SeparatorReplacement:$('config-gs1').value})});$('config-dialog').close();await loadAgents();}catch(error){$('config-error').textContent=error.message;}};
     if(state.token) showDashboard();
   </script>
 </body>

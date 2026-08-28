@@ -22,6 +22,9 @@ data class FleetConfig(
     val serverUrl: String = "",
     /** Понятное оператору имя рабочего места в центральной панели. */
     val displayName: String = "",
+    /** Последние подтверждённые ревизии команд центрального сервера. */
+    val appliedConfigRevision: Long = 0,
+    val appliedRevokePhonesRevision: Long = 0,
 )
 
 @Serializable

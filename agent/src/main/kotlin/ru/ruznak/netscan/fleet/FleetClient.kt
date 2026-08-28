@@ -22,15 +22,18 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import ru.ruznak.netscan.AGENT_VERSION
-import ru.ruznak.netscan.config.FleetConfig
+import ru.ruznak.netscan.config.ConfigStore
+import ru.ruznak.netscan.config.SuffixKey
+import ru.ruznak.netscan.config.TypingMode
 import kotlin.math.min
 
 /** Исходящее соединение агента с центральным fleet-сервером. */
 class FleetClient(
-    private val config: FleetConfig,
+    private val configStore: ConfigStore,
     private val hostName: String,
     private val enrollmentToken: String?,
     private val credentialsStore: FleetCredentialsStore,
+    private val revokePhones: () -> Unit,
 ) : AutoCloseable {
     private val log = LoggerFactory.getLogger(FleetClient::class.java)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -42,12 +45,13 @@ class FleetClient(
     private var job: Job? = null
 
     fun start() {
-        if (config.serverUrl.isBlank()) return
+        if (configStore.config.fleet.serverUrl.isBlank()) return
         job = scope.launch { runLoop() }
     }
 
     private suspend fun runLoop() {
-        val storedCredentials = credentialsStore.load(config.serverUrl)
+        val fleetConfig = configStore.config.fleet
+        val storedCredentials = credentialsStore.load(fleetConfig.serverUrl)
         val credentials = if (storedCredentials == null) {
             val token = enrollmentToken?.takeIf { it.isNotBlank() }
             if (token == null) {
@@ -91,12 +95,13 @@ class FleetClient(
     }
 
     private suspend fun enroll(token: String): FleetCredentials {
-        val response = http.post("${config.serverUrl}/api/v1/agents/enroll") {
+        val fleetConfig = configStore.config.fleet
+        val response = http.post("${fleetConfig.serverUrl}/api/v1/agents/enroll") {
             contentType(ContentType.Application.Json)
             setBody(
                 EnrollRequest(
                     enrollmentToken = token,
-                    displayName = config.displayName.ifBlank { hostName },
+                    displayName = fleetConfig.displayName.ifBlank { hostName },
                     hostName = hostName,
                     agentVersion = AGENT_VERSION,
                     osName = System.getProperty("os.name", "unknown"),
@@ -106,17 +111,75 @@ class FleetClient(
         }
         check(response.status.isSuccess()) { "регистрация отклонена: HTTP ${response.status.value}" }
         val body = response.body<EnrollResponse>()
-        return FleetCredentials(config.serverUrl, body.agentId, body.agentToken).also(credentialsStore::save)
+        return FleetCredentials(fleetConfig.serverUrl, body.agentId, body.agentToken).also(credentialsStore::save)
     }
 
     private suspend fun heartbeat(credentials: FleetCredentials): Int {
-        val response = http.post("${config.serverUrl}/api/v1/agents/heartbeat") {
+        val fleet = configStore.config.fleet
+        val response = http.post("${credentials.serverUrl}/api/v1/agents/heartbeat") {
             bearerAuth(credentials.agentToken)
             contentType(ContentType.Application.Json)
-            setBody(HeartbeatRequest(agentVersion = AGENT_VERSION, hostName = hostName))
+            setBody(
+                HeartbeatRequest(
+                    agentVersion = AGENT_VERSION,
+                    hostName = hostName,
+                    appliedConfigRevision = fleet.appliedConfigRevision,
+                    appliedRevokePhonesRevision = fleet.appliedRevokePhonesRevision,
+                ),
+            )
         }
         check(response.status.isSuccess()) { "heartbeat отклонён: HTTP ${response.status.value}" }
-        return response.body<HeartbeatResponse>().nextHeartbeatSeconds
+        val body = response.body<HeartbeatResponse>()
+        applyCommands(body)
+        return body.nextHeartbeatSeconds
+    }
+
+    private fun applyCommands(response: HeartbeatResponse) {
+        val current = configStore.config
+        if (response.config != null && response.configRevision > current.fleet.appliedConfigRevision) {
+            val remote = response.config
+            configStore.update { existing ->
+                existing.copy(
+                    scan = existing.scan.copy(
+                        duplicateWindowMs = remote.duplicateWindowMs,
+                        allowedFormats = remote.allowedFormats.toSet(),
+                        filterRegex = remote.filterRegex,
+                    ),
+                    output = existing.output.copy(
+                        typingMode = enumValue<TypingMode>(remote.typingMode),
+                        suffix = suffix(remote.suffix),
+                        keyDelayMs = remote.keyDelayMs,
+                        typingLeadMs = remote.typingLeadMs,
+                        gs1SeparatorReplacement = remote.gs1SeparatorReplacement,
+                    ),
+                    fleet = existing.fleet.copy(appliedConfigRevision = response.configRevision),
+                )
+            }
+            log.info("Применена удалённая конфигурация fleet, ревизия {}", response.configRevision)
+        }
+
+        val appliedRevoke = configStore.config.fleet.appliedRevokePhonesRevision
+        if (response.revokePhonesRevision > appliedRevoke) {
+            revokePhones()
+            configStore.update { existing ->
+                existing.copy(
+                    fleet = existing.fleet.copy(appliedRevokePhonesRevision = response.revokePhonesRevision),
+                )
+            }
+            log.info("По команде fleet отозваны сопряжённые телефоны, ревизия {}", response.revokePhonesRevision)
+        }
+    }
+
+    private inline fun <reified T : Enum<T>> enumValue(raw: String): T =
+        enumValues<T>().firstOrNull { it.name.equals(raw, ignoreCase = true) }
+            ?: error("неподдерживаемое значение fleet: $raw")
+
+    private fun suffix(raw: String): SuffixKey = when (raw.lowercase()) {
+        "none" -> SuffixKey.NONE
+        "enter" -> SuffixKey.ENTER
+        "tab" -> SuffixKey.TAB
+        "both", "tab_enter" -> SuffixKey.TAB_ENTER
+        else -> error("неподдерживаемый суффикс: $raw")
     }
 
     override fun close() {

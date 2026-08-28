@@ -83,6 +83,11 @@ fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
                             "offline"
                         },
                         revokedAt = agent.revokedAt?.toString(),
+                        desiredConfig = agent.desiredConfig,
+                        configRevision = agent.configRevision,
+                        appliedConfigRevision = agent.appliedConfigRevision,
+                        revokePhonesRevision = agent.revokePhonesRevision,
+                        appliedRevokePhonesRevision = agent.appliedRevokePhonesRevision,
                     )
                 }
                 call.respond(agents)
@@ -94,6 +99,21 @@ fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
                     .getOrElse { throw ApiException(400, "Некорректный идентификатор агента") }
                 if (!repository.revokeAgent(id)) throw ApiException(404, "Агент не найден")
                 call.respond(mapOf("status" to "revoked"))
+            }
+
+            post("/agents/{id}/config") {
+                requireAdmin(call.request.headers["Authorization"], config.adminToken)
+                val id = agentId(call.parameters["id"])
+                val desired = call.receive<RemoteAgentConfig>().validated()
+                if (!repository.updateAgentConfig(id, desired)) throw ApiException(404, "Активный агент не найден")
+                call.respond(mapOf("status" to "queued"))
+            }
+
+            post("/agents/{id}/revoke-phones") {
+                requireAdmin(call.request.headers["Authorization"], config.adminToken)
+                val id = agentId(call.parameters["id"])
+                if (!repository.requestPhoneRevocation(id)) throw ApiException(404, "Активный агент не найден")
+                call.respond(mapOf("status" to "queued"))
             }
         }
 
@@ -114,9 +134,41 @@ fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
         post("/api/v1/agents/heartbeat") {
             val agentId = authenticateAgent(call.request.headers["Authorization"], repository)
             val request = call.receive<HeartbeatRequest>().validated()
-            if (!repository.heartbeat(agentId, request)) throw ApiException(401, "Агент не зарегистрирован")
-            call.respond(HeartbeatResponse(serverTime = Instant.now().toString()))
+            val commands = repository.heartbeat(agentId, request)
+                ?: throw ApiException(401, "Агент не зарегистрирован")
+            call.respond(
+                HeartbeatResponse(
+                    serverTime = Instant.now().toString(),
+                    configRevision = commands.configRevision,
+                    config = commands.desiredConfig.takeIf { commands.configRevision > request.appliedConfigRevision },
+                    revokePhonesRevision = commands.revokePhonesRevision,
+                ),
+            )
         }
+    }
+}
+
+private fun agentId(raw: String?): UUID = runCatching { UUID.fromString(raw) }
+    .getOrElse { throw ApiException(400, "Некорректный идентификатор агента") }
+
+private fun RemoteAgentConfig.validated(): RemoteAgentConfig = copy(
+    typingMode = typingMode.trim().lowercase(),
+    suffix = suffix.trim().lowercase(),
+    allowedFormats = allowedFormats.map { it.trim().lowercase() }.distinct(),
+    filterRegex = filterRegex?.trim()?.takeIf { it.isNotEmpty() },
+).also {
+    if (it.typingMode !in setOf("clipboard", "hybrid", "keys")) throw ApiException(400, "Некорректный способ ввода")
+    if (it.suffix !in setOf("enter", "tab", "both", "none")) throw ApiException(400, "Некорректный суффикс")
+    if (it.keyDelayMs !in 0..200) throw ApiException(400, "Задержка между символами должна быть 0–200 мс")
+    if (it.typingLeadMs !in 0..5000) throw ApiException(400, "Пауза перед вводом должна быть 0–5000 мс")
+    if (it.duplicateWindowMs !in 0..60000) throw ApiException(400, "Подавление повторов должно быть 0–60000 мс")
+    val supported = setOf("data_matrix", "qr_code", "pdf417", "aztec")
+    if (it.allowedFormats.isEmpty() || it.allowedFormats.any { format -> format !in supported }) {
+        throw ApiException(400, "Выберите хотя бы один поддерживаемый 2D-формат")
+    }
+    if (it.gs1SeparatorReplacement.length > 20) throw ApiException(400, "Замена GS1 слишком длинная")
+    it.filterRegex?.let { regex ->
+        runCatching { Regex(regex) }.getOrElse { throw ApiException(400, "Некорректное регулярное выражение") }
     }
 }
 

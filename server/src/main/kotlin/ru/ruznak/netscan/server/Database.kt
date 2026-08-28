@@ -8,6 +8,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 import javax.sql.DataSource
+import kotlinx.serialization.json.Json
 
 object DatabaseFactory {
     fun create(config: ServerConfig): HikariDataSource {
@@ -30,6 +31,8 @@ object DatabaseFactory {
 }
 
 class FleetRepository(private val dataSource: DataSource) {
+
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun ping(): Boolean = dataSource.connection.use { connection ->
         connection.prepareStatement("SELECT 1").use { statement ->
@@ -118,17 +121,33 @@ class FleetRepository(private val dataSource: DataSource) {
         }
     }
 
-    fun heartbeat(agentId: UUID, request: HeartbeatRequest): Boolean = dataSource.connection.use { connection ->
+    fun heartbeat(agentId: UUID, request: HeartbeatRequest): AgentCommands? = dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
-            UPDATE agents SET last_seen_at = CURRENT_TIMESTAMP, agent_version = ?, host_name = ?
+            UPDATE agents SET
+                last_seen_at = CURRENT_TIMESTAMP,
+                agent_version = ?,
+                host_name = ?,
+                applied_config_revision = GREATEST(applied_config_revision, ?),
+                applied_revoke_phones_revision = GREATEST(applied_revoke_phones_revision, ?)
             WHERE id = ? AND revoked_at IS NULL
+            RETURNING desired_config::text, config_revision, revoke_phones_revision
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, request.agentVersion)
             statement.setString(2, request.hostName)
-            statement.setObject(3, agentId)
-            statement.executeUpdate() == 1
+            statement.setLong(3, request.appliedConfigRevision)
+            statement.setLong(4, request.appliedRevokePhonesRevision)
+            statement.setObject(5, agentId)
+            statement.executeQuery().use { result ->
+                if (result.next()) {
+                    AgentCommands(
+                        desiredConfig = json.decodeFromString(result.getString("desired_config")),
+                        configRevision = result.getLong("config_revision"),
+                        revokePhonesRevision = result.getLong("revoke_phones_revision"),
+                    )
+                } else null
+            }
         }
     }
 
@@ -136,7 +155,9 @@ class FleetRepository(private val dataSource: DataSource) {
         connection.prepareStatement(
             """
             SELECT id, display_name, host_name, agent_version, os_name, os_version,
-                   enrolled_at, last_seen_at, revoked_at
+                   enrolled_at, last_seen_at, revoked_at, desired_config::text,
+                   config_revision, applied_config_revision,
+                   revoke_phones_revision, applied_revoke_phones_revision
             FROM agents ORDER BY last_seen_at DESC
             """.trimIndent(),
         ).use { statement ->
@@ -154,6 +175,11 @@ class FleetRepository(private val dataSource: DataSource) {
                                 enrolledAt = result.getObject("enrolled_at", OffsetDateTime::class.java).toInstant(),
                                 lastSeenAt = result.getObject("last_seen_at", OffsetDateTime::class.java).toInstant(),
                                 revokedAt = result.getObject("revoked_at", OffsetDateTime::class.java)?.toInstant(),
+                                desiredConfig = json.decodeFromString(result.getString("desired_config")),
+                                configRevision = result.getLong("config_revision"),
+                                appliedConfigRevision = result.getLong("applied_config_revision"),
+                                revokePhonesRevision = result.getLong("revoke_phones_revision"),
+                                appliedRevokePhonesRevision = result.getLong("applied_revoke_phones_revision"),
                             ),
                         )
                     }
@@ -165,6 +191,32 @@ class FleetRepository(private val dataSource: DataSource) {
     fun revokeAgent(id: UUID): Boolean = dataSource.connection.use { connection ->
         connection.prepareStatement(
             "UPDATE agents SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE id = ?",
+        ).use { statement ->
+            statement.setObject(1, id)
+            statement.executeUpdate() == 1
+        }
+    }
+
+    fun updateAgentConfig(id: UUID, config: RemoteAgentConfig): Boolean = dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            UPDATE agents
+            SET desired_config = ?::jsonb, config_revision = config_revision + 1
+            WHERE id = ? AND revoked_at IS NULL
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setString(1, json.encodeToString(config))
+            statement.setObject(2, id)
+            statement.executeUpdate() == 1
+        }
+    }
+
+    fun requestPhoneRevocation(id: UUID): Boolean = dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            UPDATE agents SET revoke_phones_revision = revoke_phones_revision + 1
+            WHERE id = ? AND revoked_at IS NULL
+            """.trimIndent(),
         ).use { statement ->
             statement.setObject(1, id)
             statement.executeUpdate() == 1

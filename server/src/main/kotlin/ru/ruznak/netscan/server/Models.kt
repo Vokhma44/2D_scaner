@@ -37,12 +37,29 @@ data class EnrollAgentResponse(
 data class HeartbeatRequest(
     val agentVersion: String,
     val hostName: String,
+    val appliedConfigRevision: Long = 0,
+    val appliedRevokePhonesRevision: Long = 0,
 )
 
 @Serializable
 data class HeartbeatResponse(
     val serverTime: String,
     val nextHeartbeatSeconds: Int = 30,
+    val configRevision: Long = 0,
+    val config: RemoteAgentConfig? = null,
+    val revokePhonesRevision: Long = 0,
+)
+
+@Serializable
+data class RemoteAgentConfig(
+    val typingMode: String = "clipboard",
+    val suffix: String = "enter",
+    val keyDelayMs: Long = 4,
+    val typingLeadMs: Long = 0,
+    val duplicateWindowMs: Long = 1500,
+    val allowedFormats: List<String> = listOf("data_matrix"),
+    val filterRegex: String? = null,
+    val gs1SeparatorReplacement: String = "",
 )
 
 @Serializable
@@ -57,6 +74,11 @@ data class AgentView(
     val lastSeenAt: String,
     val status: String,
     val revokedAt: String? = null,
+    val desiredConfig: RemoteAgentConfig = RemoteAgentConfig(),
+    val configRevision: Long = 0,
+    val appliedConfigRevision: Long = 0,
+    val revokePhonesRevision: Long = 0,
+    val appliedRevokePhonesRevision: Long = 0,
 )
 
 @Serializable
@@ -72,6 +94,17 @@ data class AgentRecord(
     val enrolledAt: Instant,
     val lastSeenAt: Instant,
     val revokedAt: Instant? = null,
+    val desiredConfig: RemoteAgentConfig = RemoteAgentConfig(),
+    val configRevision: Long = 0,
+    val appliedConfigRevision: Long = 0,
+    val revokePhonesRevision: Long = 0,
+    val appliedRevokePhonesRevision: Long = 0,
+)
+
+data class AgentCommands(
+    val desiredConfig: RemoteAgentConfig,
+    val configRevision: Long,
+    val revokePhonesRevision: Long,
 )
 
 class ApiException(val status: Int, override val message: String) : RuntimeException(message)
