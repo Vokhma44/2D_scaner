@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "ru.ruznak.netscan"
-version = "0.1.0"
+version = providers.gradleProperty("netscanVersion").get()
 
 repositories { mavenCentral() }
 

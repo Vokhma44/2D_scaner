@@ -140,7 +140,7 @@
             <button class="small configure" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Настройки</button>
             <button class="small phones" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Отвязать телефоны</button>
             <button class="small danger revoke" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Отозвать агент</button>
-          </div><div class="muted" style="font-size:11px;margin-top:5px">конфигурация: ${agent.configRevision===agent.appliedConfigRevision?'применена':'ожидает применения'}</div></td>
+          </div><div class="muted" style="font-size:11px;margin-top:5px">конфигурация: ${configStatus(agent)}</div></td>
         </tr>`).join('') : '<tr><td colspan="7" class="muted">Пока нет подключённых агентов</td></tr>';
         $('count-all').textContent = agents.length;
         $('count-online').textContent = agents.filter(x=>x.status==='online').length;
@@ -157,6 +157,13 @@
       const name=state.agents.find(x=>x.id===id)?.displayName||id;
       if (!confirm(`Отозвать агент «${name}»? Он потеряет доступ к fleet-серверу, но локальное сканирование продолжится.`)) return;
       try { await api(`/api/v1/admin/agents/${id}/revoke`,{method:'POST'}); await loadAgents(); } catch(error){ alert(error.message); }
+    }
+    function configStatus(agent) {
+      if (agent.configRevision === agent.appliedConfigRevision) return 'применена';
+      if (agent.configRevision === agent.rejectedConfigRevision) {
+        return `отклонена (${escapeHtml(agent.configRejectionReason || 'неизвестная причина')})`;
+      }
+      return 'ожидает применения';
     }
     async function revokePhones(id) {
       const name=state.agents.find(x=>x.id===id)?.displayName||id;

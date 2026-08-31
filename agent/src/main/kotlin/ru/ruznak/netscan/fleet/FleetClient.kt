@@ -124,6 +124,8 @@ class FleetClient(
                     agentVersion = AGENT_VERSION,
                     hostName = hostName,
                     appliedConfigRevision = fleet.appliedConfigRevision,
+                    rejectedConfigRevision = fleet.rejectedConfigRevision,
+                    configRejectionReason = fleet.configRejectionReason,
                     appliedRevokePhonesRevision = fleet.appliedRevokePhonesRevision,
                 ),
             )
@@ -134,28 +136,47 @@ class FleetClient(
         return body.nextHeartbeatSeconds
     }
 
-    private fun applyCommands(response: HeartbeatResponse) {
+    internal fun applyCommands(response: HeartbeatResponse) {
         val current = configStore.config
-        if (response.config != null && response.configRevision > current.fleet.appliedConfigRevision) {
+        val handledRevision = maxOf(current.fleet.appliedConfigRevision, current.fleet.rejectedConfigRevision)
+        if (response.config != null && response.configRevision > handledRevision) {
             val remote = response.config
-            configStore.update { existing ->
-                existing.copy(
-                    scan = existing.scan.copy(
-                        duplicateWindowMs = remote.duplicateWindowMs,
-                        allowedFormats = remote.allowedFormats.toSet(),
-                        filterRegex = remote.filterRegex,
-                    ),
-                    output = existing.output.copy(
-                        typingMode = enumValue<TypingMode>(remote.typingMode),
-                        suffix = suffix(remote.suffix),
-                        keyDelayMs = remote.keyDelayMs,
-                        typingLeadMs = remote.typingLeadMs,
-                        gs1SeparatorReplacement = remote.gs1SeparatorReplacement,
-                    ),
-                    fleet = existing.fleet.copy(appliedConfigRevision = response.configRevision),
-                )
+            val applied = runCatching {
+                configStore.update { existing ->
+                    existing.copy(
+                        scan = existing.scan.copy(
+                            duplicateWindowMs = remote.duplicateWindowMs,
+                            allowedFormats = remote.allowedFormats.toSet(),
+                            filterRegex = remote.filterRegex,
+                        ),
+                        output = existing.output.copy(
+                            typingMode = enumValue<TypingMode>(remote.typingMode),
+                            suffix = suffix(remote.suffix),
+                            keyDelayMs = remote.keyDelayMs,
+                            typingLeadMs = remote.typingLeadMs,
+                            gs1SeparatorReplacement = remote.gs1SeparatorReplacement,
+                        ),
+                        fleet = existing.fleet.copy(
+                            appliedConfigRevision = response.configRevision,
+                            configRejectionReason = null,
+                        ),
+                    )
+                }
             }
-            log.info("Применена удалённая конфигурация fleet, ревизия {}", response.configRevision)
+            applied.onSuccess {
+                log.info("Применена удалённая конфигурация fleet, ревизия {}", response.configRevision)
+            }.onFailure { error ->
+                val reason = (error.message ?: error::class.simpleName ?: "неизвестная ошибка").take(500)
+                configStore.update { existing ->
+                    existing.copy(
+                        fleet = existing.fleet.copy(
+                            rejectedConfigRevision = response.configRevision,
+                            configRejectionReason = reason,
+                        ),
+                    )
+                }
+                log.warn("Отклонена удалённая конфигурация fleet, ревизия {}: {}", response.configRevision, reason)
+            }
         }
 
         val appliedRevoke = configStore.config.fleet.appliedRevokePhonesRevision

@@ -1,5 +1,8 @@
 param(
-    [string]$InstallDir = "$env:LOCALAPPDATA\RUZNAK\netscan"
+    [string]$InstallDir = "$env:LOCALAPPDATA\RUZNAK\netscan",
+    [string]$FleetServer = "https://fleet.ruznak.io",
+    [string]$EnrollmentToken = "",
+    [string]$AgentName = $env:COMPUTERNAME
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,6 +12,7 @@ $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $shortcutDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
 $appShortcut = Join-Path $shortcutDir "РУЗНАК netscan.lnk"
 $uninstallShortcut = Join-Path $shortcutDir "Удалить РУЗНАК netscan.lnk"
+$credentialsFile = Join-Path $env:USERPROFILE ".netscan\fleet-credentials.json"
 
 if (-not (Test-Path (Join-Path $sourceDir "netscan.exe"))) {
     throw "Рядом с установщиком не найдена папка netscan"
@@ -45,7 +49,34 @@ $shortcut.Arguments = ('-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $unin
 $shortcut.Description = "Удалить РУЗНАК netscan"
 $shortcut.Save()
 
-Start-Process -FilePath $exe
+if (-not (Test-Path $credentialsFile) -and [string]::IsNullOrWhiteSpace($EnrollmentToken)) {
+    Write-Host ""
+    Write-Host "Чтобы компьютер появился в панели fleet.ruznak.io, вставьте одноразовый код подключения." -ForegroundColor Yellow
+    Write-Host "Код создаётся администратором кнопкой «Подключить агент»." -ForegroundColor Yellow
+    $EnrollmentToken = Read-Host "Код подключения (Enter — установить автономно)"
+}
+
+$startArguments = @()
+if (-not [string]::IsNullOrWhiteSpace($EnrollmentToken)) {
+    $startArguments = @(
+        "--fleet-server", $FleetServer,
+        "--agent-name", $AgentName,
+        "--enrollment-token", $EnrollmentToken.Trim()
+    )
+}
+if ($startArguments.Count -gt 0) {
+    Start-Process -FilePath $exe -ArgumentList $startArguments
+} else {
+    Start-Process -FilePath $exe
+}
+$EnrollmentToken = $null
 Write-Host ""
 Write-Host "РУЗНАК netscan установлен: $InstallDir" -ForegroundColor Green
 Write-Host "Автозапуск включён для текущего пользователя."
+if (Test-Path $credentialsFile) {
+    Write-Host "Компьютер зарегистрирован на fleet-сервере." -ForegroundColor Green
+} elseif ($startArguments.Count -gt 0) {
+    Write-Host "Регистрация на fleet-сервере выполняется в фоне; компьютер появится в панели в течение минуты."
+} else {
+    Write-Host "Агент установлен автономно и не будет отображаться в fleet-панели." -ForegroundColor Yellow
+}

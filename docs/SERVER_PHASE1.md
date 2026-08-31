@@ -85,7 +85,7 @@ Content-Type: application/json
   "enrollmentToken":"<одноразовый код>",
   "displayName":"Приёмка — ПК 1",
   "hostName":"WAREHOUSE-PC-01",
-  "agentVersion":"1.1.0",
+  "agentVersion":"1.4.0",
   "osName":"Windows 11",
   "osVersion":"10.0"
 }
@@ -101,7 +101,7 @@ POST /api/v1/agents/heartbeat
 Authorization: Bearer <agentToken>
 Content-Type: application/json
 
-{"agentVersion":"1.1.0","hostName":"WAREHOUSE-PC-01"}
+{"agentVersion":"1.4.0","hostName":"WAREHOUSE-PC-01"}
 ```
 
 ### Получить реестр агентов

@@ -129,6 +129,11 @@ class FleetRepository(private val dataSource: DataSource) {
                 agent_version = ?,
                 host_name = ?,
                 applied_config_revision = GREATEST(applied_config_revision, ?),
+                config_rejection_reason = CASE
+                    WHEN ? >= rejected_config_revision THEN ?
+                    ELSE config_rejection_reason
+                END,
+                rejected_config_revision = GREATEST(rejected_config_revision, ?),
                 applied_revoke_phones_revision = GREATEST(applied_revoke_phones_revision, ?)
             WHERE id = ? AND revoked_at IS NULL
             RETURNING desired_config::text, config_revision, revoke_phones_revision
@@ -137,8 +142,11 @@ class FleetRepository(private val dataSource: DataSource) {
             statement.setString(1, request.agentVersion)
             statement.setString(2, request.hostName)
             statement.setLong(3, request.appliedConfigRevision)
-            statement.setLong(4, request.appliedRevokePhonesRevision)
-            statement.setObject(5, agentId)
+            statement.setLong(4, request.rejectedConfigRevision)
+            statement.setString(5, request.configRejectionReason?.take(500))
+            statement.setLong(6, request.rejectedConfigRevision)
+            statement.setLong(7, request.appliedRevokePhonesRevision)
+            statement.setObject(8, agentId)
             statement.executeQuery().use { result ->
                 if (result.next()) {
                     AgentCommands(
@@ -157,6 +165,7 @@ class FleetRepository(private val dataSource: DataSource) {
             SELECT id, display_name, host_name, agent_version, os_name, os_version,
                    enrolled_at, last_seen_at, revoked_at, desired_config::text,
                    config_revision, applied_config_revision,
+                   rejected_config_revision, config_rejection_reason,
                    revoke_phones_revision, applied_revoke_phones_revision
             FROM agents ORDER BY last_seen_at DESC
             """.trimIndent(),
@@ -178,6 +187,8 @@ class FleetRepository(private val dataSource: DataSource) {
                                 desiredConfig = json.decodeFromString(result.getString("desired_config")),
                                 configRevision = result.getLong("config_revision"),
                                 appliedConfigRevision = result.getLong("applied_config_revision"),
+                                rejectedConfigRevision = result.getLong("rejected_config_revision"),
+                                configRejectionReason = result.getString("config_rejection_reason"),
                                 revokePhonesRevision = result.getLong("revoke_phones_revision"),
                                 appliedRevokePhonesRevision = result.getLong("applied_revoke_phones_revision"),
                             ),

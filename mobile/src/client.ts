@@ -9,6 +9,8 @@ import type {
 } from './types';
 import { PROTOCOL_VERSION } from './types';
 import { clearSession, loadQueue, loadSession, saveQueue, saveSession, type Session } from './storage';
+import packageMetadata from '../package.json';
+import { appendQueued, removeAcknowledged } from './offline-queue.js';
 
 export interface ClientEvents {
   onStatus(status: ConnectionStatus, detail?: string): void;
@@ -180,7 +182,7 @@ export class AgentClient {
           entry.detail = message.detail;
         }
         // Подтверждённые сканы уходят из очереди; в журнале их держит интерфейс.
-        this.queue = this.queue.filter((item) => item.status === 'pending');
+        this.queue = removeAcknowledged(this.queue, message.id);
         saveQueue(this.queue);
         this.events.onQueue(this.queue);
         this.events.onAck(message);
@@ -202,7 +204,7 @@ export class AgentClient {
 
   /** Ставит скан в очередь и пытается отправить сразу. */
   enqueue(scan: QueuedScan): void {
-    this.queue.push(scan);
+    this.queue = appendQueued(this.queue, scan);
     saveQueue(this.queue);
     this.events.onQueue(this.queue);
     this.flush();
@@ -234,7 +236,7 @@ export function describeDevice(name: string): DeviceInfo {
     name: name || 'Телефон',
     platform: navigator.platform || guessPlatform(),
     userAgent: navigator.userAgent.slice(0, 200),
-    appVersion: '1.1.0',
+    appVersion: packageMetadata.version,
   };
 }
 

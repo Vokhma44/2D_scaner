@@ -24,6 +24,8 @@ internal data class HeartbeatRequest(
     val agentVersion: String,
     val hostName: String,
     val appliedConfigRevision: Long = 0,
+    val rejectedConfigRevision: Long = 0,
+    val configRejectionReason: String? = null,
     val appliedRevokePhonesRevision: Long = 0,
 )
 

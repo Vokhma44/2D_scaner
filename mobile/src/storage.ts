@@ -1,4 +1,5 @@
 import type { QueuedScan } from './types';
+import { sanitizeQueue } from './offline-queue.js';
 
 /** Настройки, которые оператор меняет на самом телефоне. */
 export interface AppSettings {
@@ -28,7 +29,6 @@ export interface Session {
 const SETTINGS_KEY = 'netscan.settings';
 const SESSION_KEY = 'netscan.session';
 const QUEUE_KEY = 'netscan.queue';
-const QUEUE_LIMIT = 500;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   deviceName: defaultDeviceName(),
@@ -104,12 +104,12 @@ export function clearSession(): void {
 export function loadQueue(): QueuedScan[] {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
-    return raw ? (JSON.parse(raw) as QueuedScan[]) : [];
+    return raw ? sanitizeQueue(JSON.parse(raw)) : [];
   } catch {
     return [];
   }
 }
 
 export function saveQueue(queue: QueuedScan[]): void {
-  write(QUEUE_KEY, queue.slice(-QUEUE_LIMIT));
+  write(QUEUE_KEY, sanitizeQueue(queue));
 }

@@ -24,6 +24,9 @@ data class FleetConfig(
     val displayName: String = "",
     /** Последние подтверждённые ревизии команд центрального сервера. */
     val appliedConfigRevision: Long = 0,
+    /** Последняя отклонённая ревизия и безопасное описание причины для панели. */
+    val rejectedConfigRevision: Long = 0,
+    val configRejectionReason: String? = null,
     val appliedRevokePhonesRevision: Long = 0,
 )
 
@@ -56,7 +59,7 @@ data class SecurityConfig(
     val pairingAttemptsPerMinute: Int = 10,
     /** Срок жизни сессии устройства без активности, часов. 0 — бессрочно. */
     val sessionIdleHours: Int = 0,
-    /** Разрешить открывать веб-консоль ПК не только с localhost. */
+    /** Устаревшее поле для чтения старых config.json; удалённый доступ больше не разрешается. */
     val allowRemoteConsole: Boolean = false,
 )
 

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "ru.ruznak.netscan"
-version = "1.3.0"
+version = providers.gradleProperty("netscanVersion").get()
 
 repositories { mavenCentral() }
 
@@ -65,6 +65,12 @@ tasks.named<CreateStartScripts>("startScripts") {
 tasks.test {
     useJUnitPlatform()
     testLogging { events("passed", "skipped", "failed") }
+}
+
+tasks.jar {
+    manifest {
+        attributes["Implementation-Version"] = project.version.toString()
+    }
 }
 
 // --------------------------------------------------------------- мобильный клиент

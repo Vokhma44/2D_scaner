@@ -200,6 +200,7 @@ class ApiTest {
             agent.config.copy(output = agent.config.output.copy(prefix = "PRE:")),
         )
         val save = client.post("/api/console/config") {
+            header("Origin", "https://localhost:8443")
             contentType(ContentType.Application.Json)
             setBody(updated)
         }
@@ -215,12 +216,33 @@ class ApiTest {
         application { netscanModule(agent) }
 
         val response = jsonClient().post("/api/console/test") {
+            header("Origin", "https://localhost:8443")
             contentType(ContentType.Application.Json)
             setBody("""{"code":"TEST-42"}""")
         }
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals(listOf("TEST-42"), sink.texts)
+    }
+
+    @Test
+    @DisplayName("изменение консоли без локального Origin отклоняется")
+    fun izmenenie_konsoli_bez_lokalnogo_origin_otklonyaetsya() = testApplication {
+        val (agent, _) = state()
+        application { netscanModule(agent) }
+
+        val noOrigin = jsonClient().post("/api/console/history/clear")
+        assertEquals(HttpStatusCode.Forbidden, noOrigin.status)
+
+        val foreignOrigin = jsonClient().post("/api/console/history/clear") {
+            header("Origin", "https://evil.example")
+        }
+        assertEquals(HttpStatusCode.Forbidden, foreignOrigin.status)
+
+        val localOrigin = jsonClient().post("/api/console/history/clear") {
+            header("Origin", "https://localhost:8443")
+        }
+        assertEquals(HttpStatusCode.OK, localOrigin.status)
     }
 
     @Test

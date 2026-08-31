@@ -134,7 +134,7 @@ netscan --help
 | Раздел | Ключевые параметры |
 | --- | --- |
 | `network` | `httpsPort`, `httpPort`, `bindAddress`, `advertisedHost` |
-| `security` | `requireDeviceApproval`, `pairingTokenTtlMinutes`, `pairingAttemptsPerMinute`, `allowRemoteConsole` |
+| `security` | `requireDeviceApproval`, `pairingTokenTtlMinutes`, `pairingAttemptsPerMinute` |
 | `scan` | `duplicateWindowMs`, `allowedFormats`, `minLength`, `maxLength`, `filterRegex` |
 | `output` | `sinks`, `prefix`, `suffix`, `typingMode`, `keyDelayMs`, `gs1SeparatorReplacement`, `filePath`, `webhookUrl` |
 

@@ -86,6 +86,8 @@ fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
                         desiredConfig = agent.desiredConfig,
                         configRevision = agent.configRevision,
                         appliedConfigRevision = agent.appliedConfigRevision,
+                        rejectedConfigRevision = agent.rejectedConfigRevision,
+                        configRejectionReason = agent.configRejectionReason,
                         revokePhonesRevision = agent.revokePhonesRevision,
                         appliedRevokePhonesRevision = agent.appliedRevokePhonesRevision,
                     )
@@ -140,7 +142,9 @@ fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
                 HeartbeatResponse(
                     serverTime = Instant.now().toString(),
                     configRevision = commands.configRevision,
-                    config = commands.desiredConfig.takeIf { commands.configRevision > request.appliedConfigRevision },
+                    config = commands.desiredConfig.takeIf {
+                        commands.configRevision > maxOf(request.appliedConfigRevision, request.rejectedConfigRevision)
+                    },
                     revokePhonesRevision = commands.revokePhonesRevision,
                 ),
             )

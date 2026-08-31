@@ -25,6 +25,7 @@ import ru.ruznak.netscan.protocol.ScanMessage
 import ru.ruznak.netscan.protocol.ScanSource
 import ru.ruznak.netscan.scan.ScanRecord
 import ru.ruznak.netscan.security.DeviceRecord
+import java.net.URI
 import java.util.UUID
 
 @Serializable
@@ -77,7 +78,7 @@ fun Route.consoleRoutes(state: AgentState) {
         }
 
         post("/config") {
-            if (!call.consoleAllowed(state)) return@post
+            if (!call.consoleMutationAllowed(state)) return@post
             val incoming = runCatching { call.receive<AgentConfig>() }.getOrElse {
                 call.respond(HttpStatusCode.BadRequest, ApiError("bad_request", "Некорректные настройки"))
                 return@post
@@ -101,13 +102,13 @@ fun Route.consoleRoutes(state: AgentState) {
         }
 
         post("/pairing/rotate") {
-            if (!call.consoleAllowed(state)) return@post
+            if (!call.consoleMutationAllowed(state)) return@post
             state.pairing.rotate()
             call.respond(state.snapshot())
         }
 
         post("/devices/{id}/{action}") {
-            if (!call.consoleAllowed(state)) return@post
+            if (!call.consoleMutationAllowed(state)) return@post
             val id = call.parameters["id"].orEmpty()
             val action = call.parameters["action"].orEmpty()
 
@@ -142,7 +143,7 @@ fun Route.consoleRoutes(state: AgentState) {
         }
 
         post("/test") {
-            if (!call.consoleAllowed(state)) return@post
+            if (!call.consoleMutationAllowed(state)) return@post
             val request = runCatching { call.receive<TestScanRequest>() }.getOrElse {
                 call.respond(HttpStatusCode.BadRequest, ApiError("bad_request", "Не указан код"))
                 return@post
@@ -162,7 +163,7 @@ fun Route.consoleRoutes(state: AgentState) {
         }
 
         post("/history/clear") {
-            if (!call.consoleAllowed(state)) return@post
+            if (!call.consoleMutationAllowed(state)) return@post
             state.history.clear()
             call.respond(OkResponse())
         }
@@ -198,11 +199,10 @@ private fun AgentState.snapshot(): ConsoleState = ConsoleState(
 )
 
 /**
- * Консоль доступна с самого ПК. Удалённый доступ включается явно в настройках —
- * например, когда агент стоит на неттопе без монитора.
+ * Консоль всегда доступна только с самого ПК. Старое поле allowRemoteConsole
+ * остаётся в JSON лишь для обратной совместимости, но больше не ослабляет защиту.
  */
 private suspend fun ApplicationCall.consoleAllowed(state: AgentState): Boolean {
-    if (state.config.security.allowRemoteConsole) return true
     val remote = request.origin.remoteHost
     val local = remote == "localhost" || remote == "127.0.0.1" || remote == "::1" || remote == "0:0:0:0:0:0:0:1"
     if (!local) {
@@ -210,6 +210,25 @@ private suspend fun ApplicationCall.consoleAllowed(state: AgentState): Boolean {
             HttpStatusCode.Forbidden,
             ApiError("console_local_only", "Консоль открывается только на самом ПК"),
         )
+        return false
+    }
+    return true
+}
+
+/**
+ * Одной проверки IP недостаточно: вредоносная страница в браузере пользователя
+ * могла отправить POST на localhost. Для изменяющих запросов принимаем только
+ * Origin локальной HTTPS-консоли этого агента.
+ */
+private suspend fun ApplicationCall.consoleMutationAllowed(state: AgentState): Boolean {
+    if (!consoleAllowed(state)) return false
+    val origin = request.headers["Origin"]
+    val uri = runCatching { origin?.let(::URI) }.getOrNull()
+    val localHost = uri?.host in setOf("localhost", "127.0.0.1", "::1", "[::1]", "0:0:0:0:0:0:0:1")
+    val expectedPort = state.config.network.httpsPort
+    val actualPort = uri?.port?.takeIf { it >= 0 } ?: if (uri?.scheme == "https") 443 else -1
+    if (uri?.scheme != "https" || !localHost || actualPort != expectedPort) {
+        respond(HttpStatusCode.Forbidden, ApiError("csrf_rejected", "Запрос отклонён защитой локальной консоли"))
         return false
     }
     return true

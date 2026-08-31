@@ -6,7 +6,7 @@
  * всегда в приоритете — свежая сборка агента подхватывается сразу, а кэш
  * выручает только при недоступной сети.
  */
-const CACHE = 'netscan-shell-v1';
+const CACHE = 'netscan-shell-v2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

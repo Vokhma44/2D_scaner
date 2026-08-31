@@ -38,6 +38,8 @@ data class HeartbeatRequest(
     val agentVersion: String,
     val hostName: String,
     val appliedConfigRevision: Long = 0,
+    val rejectedConfigRevision: Long = 0,
+    val configRejectionReason: String? = null,
     val appliedRevokePhonesRevision: Long = 0,
 )
 
@@ -77,6 +79,8 @@ data class AgentView(
     val desiredConfig: RemoteAgentConfig = RemoteAgentConfig(),
     val configRevision: Long = 0,
     val appliedConfigRevision: Long = 0,
+    val rejectedConfigRevision: Long = 0,
+    val configRejectionReason: String? = null,
     val revokePhonesRevision: Long = 0,
     val appliedRevokePhonesRevision: Long = 0,
 )
@@ -97,6 +101,8 @@ data class AgentRecord(
     val desiredConfig: RemoteAgentConfig = RemoteAgentConfig(),
     val configRevision: Long = 0,
     val appliedConfigRevision: Long = 0,
+    val rejectedConfigRevision: Long = 0,
+    val configRejectionReason: String? = null,
     val revokePhonesRevision: Long = 0,
     val appliedRevokePhonesRevision: Long = 0,
 )
