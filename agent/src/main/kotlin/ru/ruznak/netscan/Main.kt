@@ -13,6 +13,7 @@ import ru.ruznak.netscan.scan.ScanHistory
 import ru.ruznak.netscan.security.DeviceRegistry
 import ru.ruznak.netscan.security.PairingService
 import ru.ruznak.netscan.tray.TrayController
+import ru.ruznak.netscan.update.AutoUpdater
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import kotlin.system.exitProcess
@@ -99,6 +100,8 @@ fun main(argv: Array<String>) {
         },
     ).also { it.start() }
 
+    val updater = AutoUpdater(args.home, httpClient).also { it.start() }
+
     val shutdown = CountDownLatch(1)
     val tray = TrayController.install(state) {
         exitProcess(0)
@@ -108,6 +111,7 @@ fun main(argv: Array<String>) {
             log.info("Остановка агента")
             tray?.close()
             fleet.close()
+            updater.close()
             servers.stop()
             state.close()
             instanceLock.close()
