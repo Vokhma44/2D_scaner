@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import ru.ruznak.netscan.AGENT_VERSION
 import java.nio.file.Files
@@ -46,7 +48,7 @@ class AutoUpdater(
     internal suspend fun checkAndInstall() {
         val releaseResponse = http.get(RELEASE_API) { header(HttpHeaders.UserAgent, "RUZNAK-netscan/$AGENT_VERSION") }
         check(releaseResponse.status.isSuccess()) { "GitHub Releases: HTTP ${releaseResponse.status.value}" }
-        val release = releaseResponse.body<GitHubRelease>()
+        val release = Json { ignoreUnknownKeys = true }.decodeFromString<GitHubRelease>(releaseResponse.bodyAsText())
         val current = SemanticVersion.parse(AGENT_VERSION) ?: error("некорректная текущая версия $AGENT_VERSION")
         val available = SemanticVersion.parse(release.tagName) ?: return
         if (release.draft || release.prerelease || available <= current) return
