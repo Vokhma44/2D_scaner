@@ -53,7 +53,7 @@ class AutoUpdater(
 
         val version = release.tagName.removePrefix("v")
         val zipName = "netscan-windows-$version.zip"
-        val hashName = "$zipName.sha256"
+        val hashName = "netscan-windows-$version.sha256"
         val zipAsset = release.assets.singleOrNull { it.name == zipName } ?: error("в релизе нет $zipName")
         val hashAsset = release.assets.singleOrNull { it.name == hashName } ?: error("в релизе нет $hashName")
         require(zipAsset.url.startsWith(RELEASE_DOWNLOAD_PREFIX) && hashAsset.url.startsWith(RELEASE_DOWNLOAD_PREFIX)) {

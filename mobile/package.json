@@ -1,6 +1,6 @@
 {
   "name": "netscan-mobile",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
   "description": "Мобильный клиент netscan: телефон работает вместо USB-сканера 2D",
   "type": "module",
