@@ -27,6 +27,10 @@ internal data class HeartbeatRequest(
     val rejectedConfigRevision: Long = 0,
     val configRejectionReason: String? = null,
     val appliedRevokePhonesRevision: Long = 0,
+    val updateStatus: String = "idle",
+    val updateTargetVersion: String? = null,
+    val updateError: String? = null,
+    val updateStatusAt: String? = null,
 )
 
 @Serializable

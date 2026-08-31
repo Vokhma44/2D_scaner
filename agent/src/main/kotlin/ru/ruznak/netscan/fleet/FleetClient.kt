@@ -25,6 +25,7 @@ import ru.ruznak.netscan.AGENT_VERSION
 import ru.ruznak.netscan.config.ConfigStore
 import ru.ruznak.netscan.config.SuffixKey
 import ru.ruznak.netscan.config.TypingMode
+import ru.ruznak.netscan.update.UpdateStatusSnapshot
 import kotlin.math.min
 
 /** Исходящее соединение агента с центральным fleet-сервером. */
@@ -34,6 +35,7 @@ class FleetClient(
     private val enrollmentToken: String?,
     private val credentialsStore: FleetCredentialsStore,
     private val revokePhones: () -> Unit,
+    private val updateStatus: () -> UpdateStatusSnapshot = { UpdateStatusSnapshot() },
 ) : AutoCloseable {
     private val log = LoggerFactory.getLogger(FleetClient::class.java)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -116,6 +118,7 @@ class FleetClient(
 
     private suspend fun heartbeat(credentials: FleetCredentials): Int {
         val fleet = configStore.config.fleet
+        val update = updateStatus()
         val response = http.post("${credentials.serverUrl}/api/v1/agents/heartbeat") {
             bearerAuth(credentials.agentToken)
             contentType(ContentType.Application.Json)
@@ -127,6 +130,10 @@ class FleetClient(
                     rejectedConfigRevision = fleet.rejectedConfigRevision,
                     configRejectionReason = fleet.configRejectionReason,
                     appliedRevokePhonesRevision = fleet.appliedRevokePhonesRevision,
+                    updateStatus = update.status,
+                    updateTargetVersion = update.targetVersion,
+                    updateError = update.error,
+                    updateStatusAt = update.updatedAt,
                 ),
             )
         }

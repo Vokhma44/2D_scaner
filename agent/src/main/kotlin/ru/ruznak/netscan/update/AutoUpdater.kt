@@ -27,6 +27,7 @@ import kotlin.io.path.name
 class AutoUpdater(
     private val home: Path,
     private val http: HttpClient,
+    private val statusStore: UpdateStatusStore,
     private val checkIntervalMs: Long = 6 * 60 * 60 * 1_000L,
 ) : AutoCloseable {
     private val log = LoggerFactory.getLogger(AutoUpdater::class.java)
@@ -38,8 +39,10 @@ class AutoUpdater(
         scope.launch {
             delay(60_000)
             while (isActive) {
-                runCatching { checkAndInstall() }
-                    .onFailure { log.warn("Не удалось проверить обновление агента: {}", it.message) }
+                runCatching { checkAndInstall() }.onFailure { error ->
+                    statusStore.update("error", error = error.message ?: error::class.simpleName)
+                    log.warn("Не удалось проверить обновление агента: {}", error.message)
+                }
                 delay(checkIntervalMs)
             }
         }
@@ -54,6 +57,7 @@ class AutoUpdater(
         if (release.draft || release.prerelease || available <= current) return
 
         val version = release.tagName.removePrefix("v")
+        statusStore.update("available", version)
         val zipName = "netscan-windows-$version.zip"
         val hashName = "netscan-windows-$version.sha256"
         val zipAsset = release.assets.singleOrNull { it.name == zipName } ?: error("в релизе нет $zipName")
@@ -66,16 +70,19 @@ class AutoUpdater(
         Files.createDirectories(updateDir)
         val zip = updateDir.resolve(zipName)
         val hashFile = updateDir.resolve(hashName)
+        statusStore.update("downloading", version)
         download(zipAsset.url, zip)
         download(hashAsset.url, hashFile)
         val expected = parseSha256(Files.readString(hashFile), zipName)
         val actual = sha256(zip)
         check(actual.equals(expected, ignoreCase = true)) { "SHA-256 обновления не совпадает" }
+        statusStore.update("verified", version)
 
         val installDir = Path.of(System.getProperty("jpackage.app-path", "")).parent
             ?: error("не удалось определить папку установки")
         val script = installDir.resolve("update-netscan.ps1")
         check(Files.isRegularFile(script)) { "не найден update-netscan.ps1" }
+        statusStore.update("installing", version)
         ProcessBuilder(
             "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script.toString(),
             "-Package", zip.toString(), "-InstallDir", installDir.toString(),

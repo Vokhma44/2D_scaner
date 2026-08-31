@@ -60,6 +60,9 @@ class FleetIntegrationTest {
                     rejectedConfigRevision = 2,
                     configRejectionReason = "unsupported value",
                     appliedRevokePhonesRevision = 1,
+                    updateStatus = "downloading",
+                    updateTargetVersion = "1.6.0",
+                    updateStatusAt = "2026-08-31T12:00:00Z",
                 ),
             ),
         )
@@ -71,6 +74,9 @@ class FleetIntegrationTest {
         assertEquals(2, stored.rejectedConfigRevision)
         assertEquals("unsupported value", stored.configRejectionReason)
         assertEquals(1, stored.appliedRevokePhonesRevision)
+        assertEquals("downloading", stored.updateStatus)
+        assertEquals("1.6.0", stored.updateTargetVersion)
+        assertEquals(Instant.parse("2026-08-31T12:00:00Z"), stored.updateStatusAt)
     }
 
     @Test

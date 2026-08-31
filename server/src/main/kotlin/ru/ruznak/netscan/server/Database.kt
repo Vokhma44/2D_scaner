@@ -134,7 +134,11 @@ class FleetRepository(private val dataSource: DataSource) {
                     ELSE config_rejection_reason
                 END,
                 rejected_config_revision = GREATEST(rejected_config_revision, ?),
-                applied_revoke_phones_revision = GREATEST(applied_revoke_phones_revision, ?)
+                applied_revoke_phones_revision = GREATEST(applied_revoke_phones_revision, ?),
+                update_status = ?,
+                update_target_version = ?,
+                update_error = ?,
+                update_status_at = COALESCE(?::timestamptz, CURRENT_TIMESTAMP)
             WHERE id = ? AND revoked_at IS NULL
             RETURNING desired_config::text, config_revision, revoke_phones_revision
             """.trimIndent(),
@@ -146,7 +150,11 @@ class FleetRepository(private val dataSource: DataSource) {
             statement.setString(5, request.configRejectionReason?.take(500))
             statement.setLong(6, request.rejectedConfigRevision)
             statement.setLong(7, request.appliedRevokePhonesRevision)
-            statement.setObject(8, agentId)
+            statement.setString(8, request.updateStatus)
+            statement.setString(9, request.updateTargetVersion)
+            statement.setString(10, request.updateError?.take(500))
+            statement.setString(11, request.updateStatusAt)
+            statement.setObject(12, agentId)
             statement.executeQuery().use { result ->
                 if (result.next()) {
                     AgentCommands(
@@ -166,7 +174,8 @@ class FleetRepository(private val dataSource: DataSource) {
                    enrolled_at, last_seen_at, revoked_at, desired_config::text,
                    config_revision, applied_config_revision,
                    rejected_config_revision, config_rejection_reason,
-                   revoke_phones_revision, applied_revoke_phones_revision
+                   revoke_phones_revision, applied_revoke_phones_revision,
+                   update_status, update_target_version, update_error, update_status_at
             FROM agents ORDER BY last_seen_at DESC
             """.trimIndent(),
         ).use { statement ->
@@ -191,6 +200,10 @@ class FleetRepository(private val dataSource: DataSource) {
                                 configRejectionReason = result.getString("config_rejection_reason"),
                                 revokePhonesRevision = result.getLong("revoke_phones_revision"),
                                 appliedRevokePhonesRevision = result.getLong("applied_revoke_phones_revision"),
+                                updateStatus = result.getString("update_status"),
+                                updateTargetVersion = result.getString("update_target_version"),
+                                updateError = result.getString("update_error"),
+                                updateStatusAt = result.getObject("update_status_at", OffsetDateTime::class.java)?.toInstant(),
                             ),
                         )
                     }

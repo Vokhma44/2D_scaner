@@ -14,6 +14,7 @@ import ru.ruznak.netscan.security.DeviceRegistry
 import ru.ruznak.netscan.security.PairingService
 import ru.ruznak.netscan.tray.TrayController
 import ru.ruznak.netscan.update.AutoUpdater
+import ru.ruznak.netscan.update.UpdateStatusStore
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import kotlin.system.exitProcess
@@ -89,6 +90,7 @@ fun main(argv: Array<String>) {
 
     print(Banner.render(state))
 
+    val updateStatus = UpdateStatusStore(args.home.resolve("update-status.json"))
     val fleet = FleetClient(
         configStore = configStore,
         hostName = state.hostName(),
@@ -98,9 +100,10 @@ fun main(argv: Array<String>) {
             devices.revokeAll()
             pairing.rotate()
         },
+        updateStatus = updateStatus::snapshot,
     ).also { it.start() }
 
-    val updater = AutoUpdater(args.home, httpClient).also { it.start() }
+    val updater = AutoUpdater(args.home, httpClient, updateStatus).also { it.start() }
 
     val shutdown = CountDownLatch(1)
     val tray = TrayController.install(state) {

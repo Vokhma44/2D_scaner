@@ -90,6 +90,10 @@ fun Application.fleetModule(config: ServerConfig, repository: FleetRepository) {
                         configRejectionReason = agent.configRejectionReason,
                         revokePhonesRevision = agent.revokePhonesRevision,
                         appliedRevokePhonesRevision = agent.appliedRevokePhonesRevision,
+                        updateStatus = agent.updateStatus,
+                        updateTargetVersion = agent.updateTargetVersion,
+                        updateError = agent.updateError,
+                        updateStatusAt = agent.updateStatusAt?.toString(),
                     )
                 }
                 call.respond(agents)
@@ -211,7 +215,18 @@ private fun EnrollAgentRequest.validated(): EnrollAgentRequest = copy(
 private fun HeartbeatRequest.validated(): HeartbeatRequest = copy(
     agentVersion = agentVersion.trim(),
     hostName = hostName.trim(),
+    updateStatus = updateStatus.trim().lowercase(),
+    updateTargetVersion = updateTargetVersion?.trim()?.takeIf(String::isNotEmpty),
+    updateError = updateError?.trim()?.takeIf(String::isNotEmpty),
 ).also {
     if (it.agentVersion.isEmpty() || it.agentVersion.length > 50) throw ApiException(400, "Некорректная версия агента")
     if (it.hostName.isEmpty() || it.hostName.length > 255) throw ApiException(400, "Некорректное имя ПК")
+    if (it.updateStatus !in setOf("idle", "available", "downloading", "verified", "installing", "updated", "error", "rollback")) {
+        throw ApiException(400, "Некорректный статус обновления")
+    }
+    if ((it.updateTargetVersion?.length ?: 0) > 50) throw ApiException(400, "Слишком длинная версия обновления")
+    if ((it.updateError?.length ?: 0) > 500) throw ApiException(400, "Слишком длинное описание ошибки обновления")
+    if (it.updateStatusAt != null && runCatching { Instant.parse(it.updateStatusAt) }.isFailure) {
+        throw ApiException(400, "Некорректное время статуса обновления")
+    }
 }

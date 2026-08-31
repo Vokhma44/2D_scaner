@@ -1,0 +1,5 @@
+ALTER TABLE agents
+    ADD COLUMN update_status VARCHAR(24) NOT NULL DEFAULT 'idle',
+    ADD COLUMN update_target_version VARCHAR(50),
+    ADD COLUMN update_error VARCHAR(500),
+    ADD COLUMN update_status_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;

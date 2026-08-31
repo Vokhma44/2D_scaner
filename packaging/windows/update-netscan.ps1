@@ -37,7 +37,8 @@ try {
     Remove-Item -LiteralPath $backup -Recurse -Force
     Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
 } catch {
-    $reason = $_.Exception.Message
+    [string]$reason = $_.Exception.Message
+    $rolledBack = $false
     Get-Process netscan -ErrorAction SilentlyContinue | Stop-Process -Force
     if (Test-Path $InstallDir) {
         Remove-Item -LiteralPath $failed -Recurse -Force -ErrorAction SilentlyContinue
@@ -46,8 +47,17 @@ try {
     if (Test-Path $backup) {
         Move-Item -LiteralPath $backup -Destination $InstallDir
         Start-Process -FilePath (Join-Path $InstallDir "netscan.exe")
+        $rolledBack = $true
     }
     $log = Join-Path $env:USERPROFILE ".netscan\update-error.log"
     "$(Get-Date -Format o) $reason" | Add-Content -LiteralPath $log -Encoding UTF8
+    $statusFile = Join-Path $env:USERPROFILE ".netscan\update-status.json"
+    $status = @{
+        status = $(if ($rolledBack) { "rollback" } else { "error" })
+        targetVersion = $ExpectedVersion
+        error = $reason.Substring(0, [Math]::Min(500, $reason.Length))
+        updatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    } | ConvertTo-Json -Compress
+    [System.IO.File]::WriteAllText($statusFile, $status, (New-Object System.Text.UTF8Encoding($false)))
     exit 1
 }

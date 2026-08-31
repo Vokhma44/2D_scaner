@@ -70,7 +70,7 @@
       </div>
       <section class="card table-wrap">
         <table>
-          <thead><tr><th>Рабочее место</th><th>Компьютер</th><th>Статус</th><th>Версия</th><th>ОС</th><th>Последняя связь</th><th></th></tr></thead>
+          <thead><tr><th>Рабочее место</th><th>Компьютер</th><th>Статус</th><th>Версия</th><th>Обновление</th><th>ОС</th><th>Последняя связь</th><th></th></tr></thead>
           <tbody id="agents"></tbody>
         </table>
       </section>
@@ -126,6 +126,12 @@
     };
     const formatDate = value => value ? new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : '—';
     const statusText = {online:'онлайн',offline:'офлайн',revoked:'отозван'};
+    const updateText = {idle:'актуальна',available:'доступно',downloading:'загрузка',verified:'проверено',installing:'установка',updated:'обновлено',error:'ошибка',rollback:'откат'};
+    const updateStatus = agent => {
+      const target = agent.updateTargetVersion ? ` → ${escapeHtml(agent.updateTargetVersion)}` : '';
+      const error = agent.updateError ? ` title="${escapeHtml(agent.updateError)}"` : '';
+      return `<span${error}>${updateText[agent.updateStatus]||escapeHtml(agent.updateStatus)}${target}</span>`;
+    };
 
     async function loadAgents() {
       try {
@@ -134,14 +140,14 @@
         $('agents').innerHTML = agents.length ? agents.map(agent => `<tr>
           <td><b>${escapeHtml(agent.displayName)}</b></td><td>${escapeHtml(agent.hostName)}</td>
           <td><span class="badge ${agent.status}">${statusText[agent.status]||agent.status}</span></td>
-          <td>${escapeHtml(agent.agentVersion)}</td><td>${escapeHtml(agent.osName)} ${escapeHtml(agent.osVersion)}</td>
+          <td>${escapeHtml(agent.agentVersion)}</td><td>${updateStatus(agent)}</td><td>${escapeHtml(agent.osName)} ${escapeHtml(agent.osVersion)}</td>
           <td>${formatDate(agent.lastSeenAt)}</td>
           <td><div class="actions">
             <button class="small configure" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Настройки</button>
             <button class="small phones" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Отвязать телефоны</button>
             <button class="small danger revoke" data-id="${agent.id}" ${agent.status==='revoked'?'disabled':''}>Отозвать агент</button>
           </div><div class="muted" style="font-size:11px;margin-top:5px">конфигурация: ${configStatus(agent)}</div></td>
-        </tr>`).join('') : '<tr><td colspan="7" class="muted">Пока нет подключённых агентов</td></tr>';
+        </tr>`).join('') : '<tr><td colspan="8" class="muted">Пока нет подключённых агентов</td></tr>';
         $('count-all').textContent = agents.length;
         $('count-online').textContent = agents.filter(x=>x.status==='online').length;
         $('count-offline').textContent = agents.filter(x=>x.status==='offline').length;
