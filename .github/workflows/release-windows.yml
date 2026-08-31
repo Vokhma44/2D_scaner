@@ -44,7 +44,7 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^v', ''
           if ($version -notmatch '^\d+\.\d+\.\d+$') {
             $properties = Get-Content gradle.properties -Raw
-            $match = [regex]::Match($properties, '(?m)^netscanVersion=(\d+\.\d+\.\d+)$')
+            $match = [regex]::Match($properties, '(?m)^netscanVersion=(\d+\.\d+\.\d+)\r?$')
             if (-not $match.Success) { throw 'Не удалось определить версию агента' }
             $version = $match.Groups[1].Value
           }
