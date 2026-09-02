@@ -66,8 +66,17 @@ object KeyboardLayout {
         put('~', KeyEvent.VK_BACK_QUOTE)
     }
 
+    /**
+     * Разделитель полей GS1 (ASCII 29, он же ScanFormatter.GS). Настоящий USB-сканер
+     * в режиме HID отдаёт его нажатием Ctrl+], и учётные системы ждут именно этого.
+     */
+    private const val GROUP_SEPARATOR = '\u001D'
+
     /** Возвращает нажатие для символа или null, если раскладка его не покрывает. */
     fun chordFor(ch: Char): KeyChord? {
+        if (ch == GROUP_SEPARATOR) {
+            return KeyChord(KeyEvent.VK_CLOSE_BRACKET, setOf(KeyChord.Modifier.CTRL))
+        }
         unshifted[ch]?.let { return KeyChord(it) }
         shifted[ch]?.let { return KeyChord.shifted(it) }
         return null

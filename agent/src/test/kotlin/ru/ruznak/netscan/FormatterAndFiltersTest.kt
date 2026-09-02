@@ -28,16 +28,40 @@ class ScanFormatterTest {
     }
 
     @Test
-    @DisplayName("разделитель GS1 удаляется по умолчанию и заменяется по настройке")
-    fun razdelitel_gs1_udalyaetsya_po_umolchaniyu_i_zamenyaetsya_po_nastroyke() {
+    @DisplayName("разделитель GS1 передаётся как есть по умолчанию и заменяется по настройке")
+    fun razdelitel_gs1_peredaetsya_kak_est_po_umolchaniyu_i_zamenyaetsya_po_nastroyke() {
         val gs = ScanFormatter.GS
         val raw = "0104607012345678${gs}21ABC${gs}93XYZ"
 
-        assertEquals("010460701234567821ABC93XYZ", ScanFormatter.format(raw, OutputConfig()).text)
+        // Без разделителя код маркировки недействителен: группа 21 переменной длины,
+        // и приёмная сторона не может определить, где кончается серийный номер.
+        assertEquals(raw, ScanFormatter.format(raw, OutputConfig()).text)
         assertEquals(
             "0104607012345678|21ABC|93XYZ",
             ScanFormatter.format(raw, OutputConfig(gs1SeparatorReplacement = "|")).text,
         )
+    }
+
+    @Test
+    @DisplayName("реальный код маркировки доходит до приёмника без потерь")
+    fun realnyy_kod_markirovki_dohodit_do_priemnika_bez_poter() {
+        val gs = ScanFormatter.GS
+        val raw = "0104660639879864215ah3(&ONb0de!${gs}91EE12${gs}92" +
+            "ozxyxZewqZQ/JCBygX3Ne+z0O6Zt8z6zVPSxFPuNRQs="
+
+        val result = ScanFormatter.format(raw, OutputConfig())
+
+        assertEquals(raw, result.text)
+        assertEquals(2, result.text.count { it == gs }, "оба разделителя должны сохраниться")
+    }
+
+    @Test
+    @DisplayName("разделитель на краю кода не срезается вместе с пробелами")
+    fun razdelitel_na_krayu_koda_ne_srezaetsya_vmeste_s_probelami() {
+        // Java относит GS к пробельным символам, поэтому обычный trim() съел бы его.
+        val gs = ScanFormatter.GS
+
+        assertEquals("01ABC$gs", ScanFormatter.format("  01ABC$gs  ", OutputConfig(trim = true)).text)
     }
 
     @Test

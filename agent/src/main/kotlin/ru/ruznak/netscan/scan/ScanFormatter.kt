@@ -20,10 +20,19 @@ object ScanFormatter {
     const val GS: Char = '\u001D'
 
     fun format(rawCode: String, config: OutputConfig): FormattedScan {
-        val code = rawCode
-            .let { if (config.trim) it.trim() else it }
-            .replace(GS.toString(), config.gs1SeparatorReplacement)
-            .let(::stripControlCharacters)
+        // Java относит GS к пробельным символам, поэтому обычный trim() срезал бы
+        // разделитель на краю кода вместе с пробелами.
+        val trimmed = if (config.trim) rawCode.trim { it.isWhitespace() && it != GS } else rawCode
+
+        // Пустая замена означает «передать разделитель как есть»: без него код
+        // маркировки не разбирается — группа 21 имеет переменную длину, и парсер
+        // не может определить, где кончается серийный номер.
+        val separated = config.gs1SeparatorReplacement
+            .takeIf { it.isNotEmpty() }
+            ?.let { replacement -> trimmed.replace(GS.toString(), replacement) }
+            ?: trimmed
+
+        val code = stripControlCharacters(separated)
 
         val text = buildString {
             append(config.prefix)
@@ -43,9 +52,10 @@ object ScanFormatter {
 
     /**
      * Управляющие символы в коде ломают ввод в чужое окно (перевод строки посреди
-     * кода отправил бы форму), поэтому вырезаются. Табуляция сохраняется —
-     * она осмысленна для многополевых кодов.
+     * кода отправил бы форму), поэтому вырезаются. Два исключения: табуляция —
+     * она осмысленна для многополевых кодов, и GS — без него код маркировки
+     * недействителен, а замену на печатный символ выбирает оператор.
      */
     private fun stripControlCharacters(value: String): String =
-        value.filter { it == '\t' || !it.isISOControl() }
+        value.filter { it == '\t' || it == GS || !it.isISOControl() }
 }

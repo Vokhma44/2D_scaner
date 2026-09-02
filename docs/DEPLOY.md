@@ -144,7 +144,7 @@ systemctl --user enable --now netscan
 | Переход к следующему полю | `--suffix tab` |
 | Форма не успевает получить фокус | увеличьте `output.typingLeadMs` |
 | Поле «теряет» символы при быстром вводе | увеличьте `--key-delay` до 10–15 мс |
-| В коде маркировки нужен разделитель GS1 | задайте `output.gs1SeparatorReplacement` |
+| Учётная система ждёт вместо GS1 свой символ | задайте `output.gs1SeparatorReplacement`; пусто — разделитель уходит как есть |
 | Принимать только коды маркировки | `scan.filterRegex` = `^01\d{14}` |
 | Принимать только DataMatrix | `scan.allowedFormats` = `["data_matrix"]` |
 | Нужны и ввод, и файл для журнала | `--sink keyboard,file --file ~/scans.txt` |
