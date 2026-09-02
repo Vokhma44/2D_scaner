@@ -8,6 +8,7 @@ import ru.ruznak.netscan.config.SuffixKey
 import ru.ruznak.netscan.keyboard.KeyChord
 import ru.ruznak.netscan.protocol.AckStatus
 import ru.ruznak.netscan.protocol.ScanMessage
+import ru.ruznak.netscan.scan.ScanFormatter
 import ru.ruznak.netscan.scan.ScanHistory
 import ru.ruznak.netscan.scan.ScanPipeline
 import java.util.concurrent.CountDownLatch
@@ -55,6 +56,24 @@ class ScanPipelineTest {
         assertEquals(AckStatus.ACCEPTED, outcome.status)
         assertEquals(listOf(">0104607012345678"), sink.texts)
         assertEquals(listOf(KeyChord.ENTER), sink.emitted.single().first.trailingKeys)
+    }
+
+    @Test
+    @DisplayName("код маркировки проходит весь конвейер, не потеряв разделители GS1")
+    fun kod_markirovki_prohodit_ves_konveyer_ne_poteryav_razdeliteli_gs1() {
+        // Регрессия: разделители удалялись форматтером, Честный знак отклонял код.
+        // Проверяем весь путь целиком — от сообщения телефона до текста в приёмнике.
+        val gs = ScanFormatter.GS
+        val marking = "0104660639879864215ah3(&ONb0de!${gs}91EE12${gs}92" +
+            "ozxyxZewqZQ/JCBygX3Ne+z0O6Zt8z6zVPSxFPuNRQs="
+        val (pipeline, sink, _) = pipeline(
+            AgentConfig(output = OutputConfig(sinks = listOf(SinkKind.KEYBOARD), suffix = SuffixKey.NONE)),
+        )
+
+        val outcome = pipeline.submit(scan(marking, format = "data_matrix"), "device-1", "Android-телефон")
+
+        assertEquals(AckStatus.ACCEPTED, outcome.status)
+        assertEquals(listOf(marking), sink.texts)
     }
 
     @Test

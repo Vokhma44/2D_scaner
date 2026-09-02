@@ -142,8 +142,8 @@
         <label>Пауза перед вводом, мс
           <input name="output.typingLeadMs" type="number" min="0" max="5000">
         </label>
-        <label>Замена разделителя GS1
-          <input name="output.gs1SeparatorReplacement" type="text" placeholder="пусто — удалять">
+        <label>Замена разделителя GS1 <span class="hint">пусто — передавать как есть, как требует маркировка</span>
+          <input name="output.gs1SeparatorReplacement" type="text" placeholder="пусто — не заменять">
         </label>
         <label>Подавление повторов, мс
           <input name="scan.duplicateWindowMs" type="number" min="0" max="60000">
@@ -286,7 +286,7 @@ function render(next) {
       <tr>
         <td class="muted">${time(h.receivedAt)}</td>
         <td>${escapeHtml(h.deviceName)}</td>
-        <td class="mono">${escapeHtml(h.code)}</td>
+        <td class="mono">${escapeHtml(visibleControls(h.code))}</td>
         <td class="muted">${escapeHtml(h.format)}</td>
         <td>${outcomeBadge(h)}</td>
       </tr>`).join('');
@@ -304,6 +304,17 @@ function outcomeBadge(entry) {
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/*
+ * Управляющие символы в HTML не отображаются никак, поэтому код маркировки,
+ * потерявший разделители GS1, в журнале выглядел бы совершенно исправным.
+ * Показываем их явно: без этого такой дефект видно только по отказу приёмки.
+ */
+function visibleControls(value) {
+  return String(value ?? '').replace(/[\u0000-\u001F\u007F]/g, (ch) => ch === '\u001D'
+    ? '<GS>'
+    : '<' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0') + '>');
 }
 
 function fillForm(config) {

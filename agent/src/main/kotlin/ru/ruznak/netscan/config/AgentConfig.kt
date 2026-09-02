@@ -94,7 +94,11 @@ data class OutputConfig(
     val typingLeadMs: Long = 0,
     /** Способ набора текста. */
     val typingMode: TypingMode = TypingMode.CLIPBOARD,
-    /** Чем заменить разделитель GS (0x1D) в кодах GS1. */
+    /**
+     * Чем заменить разделитель GS (0x1D) в кодах GS1. Пусто — передавать как есть:
+     * код маркировки без разделителя недействителен, потому что группа 21 имеет
+     * переменную длину. Замена нужна только системам, которые ждут свой символ.
+     */
     val gs1SeparatorReplacement: String = "",
     /** Убирать пробелы по краям кода. */
     val trim: Boolean = true,

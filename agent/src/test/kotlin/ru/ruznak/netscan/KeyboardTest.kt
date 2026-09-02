@@ -35,6 +35,15 @@ class KeyboardLayoutTest {
     }
 
     @Test
+    @DisplayName("разделитель GS1 набирается как Ctrl+], так же как у USB-сканера")
+    fun razdelitel_gs1_nabiraetsya_kak_ctrl_zakryvayushchaya_skobka() {
+        assertEquals(
+            KeyChord(KeyEvent.VK_CLOSE_BRACKET, setOf(KeyChord.Modifier.CTRL)),
+            KeyboardLayout.chordFor(ScanFormatter.GS),
+        )
+    }
+
+    @Test
     @DisplayName("символы вне раскладки US не имеют нажатия")
     fun simvoly_vne_raskladki_us_ne_imeyut_nazhatiya() {
         assertNull(KeyboardLayout.chordFor('к'))
